@@ -34,32 +34,6 @@ html.dark ::-webkit-scrollbar-thumb:hover {
     background: #a16207;
 }
 
-/* Manga Panel Styles for Irregular Grid Simulation */
-.manga-page {
-    aspect-ratio: 1 / 1.414; /* A4 ratio */
-    background: white;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    position: relative;
-    overflow: hidden;
-}
-
-/* Slanted Panel Simulation using Clip-path */
-.panel-slanted-1 {
-    clip-path: polygon(0 0, 100% 0, 85% 100%, 0% 100%);
-}
-.panel-slanted-2 {
-    clip-path: polygon(15% 0, 100% 0, 100% 100%, 0% 100%);
-}
-
-/* Impact Frame Simulation */
-.impact-lines {
-    background: repeating-conic-gradient(
-        from 0deg,
-        transparent 0deg 10deg,
-        rgba(0,0,0,0.1) 10deg 20deg
-    );
-}
-
 /* Chart Container Strict Styling */
 .chart-container {
     position: relative;

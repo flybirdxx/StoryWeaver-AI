@@ -240,17 +240,14 @@ const storyboard = {
             characterRefs: characterRefs,
             apiKey: apiKey,
             options: imageOptions,
-            mode: 'cinematic',
             generateBtn: generateBtn
         });
     },
 
-    // 已移除宫格漫画模式，仅保留电影宽屏模式
-
     /**
      * 统一的流式图像生成函数（内部使用）
      */
-    async _generateImagesStream({ panels, style, characterRefs, apiKey, options, mode, generateBtn }) {
+    async _generateImagesStream({ panels, style, characterRefs, apiKey, options, generateBtn }) {
 
         // 使用流式 API 实时显示
         try {
@@ -262,11 +259,10 @@ const storyboard = {
                 panels: panels,
                 style: style,
                 characterRefs: characterRefs,
-                options: options,
-                mode: mode  // 传递模式参数到后端
+                options: options
             };
             
-            console.log(`[流式生成] 发送请求，模式: ${mode}, 图片参数:`, options);
+            console.log('[流式生成] 发送请求，电影模式，图片参数:', options);
 
             let processingFinished = false;
 
@@ -352,7 +348,7 @@ const storyboard = {
                                         // 立即重新渲染，显示新生成的图像
                                         this.render();
                                         
-                                        console.log(`✓ [${mode === 'cinematic' ? '电影' : '宫格'}] 分镜 ${panel.id} 图像已生成并显示`);
+                                        console.log(`✓ 分镜 ${panel.id} 图像已生成并显示`);
                                         if (app && app.processingSteps) {
                                             app.processingSteps.mark(`分镜 #${panel.id} 已生成`);
                                         }
@@ -372,7 +368,7 @@ const storyboard = {
                                     break;
                                 
                                 case 'complete':
-                                    console.log(`[流式] [${mode === 'cinematic' ? '电影' : '宫格'}] 全部完成！成功: ${data.success}，失败: ${data.failed}`);
+                                    console.log(`[流式] [电影模式] 全部完成！成功: ${data.success}，失败: ${data.failed}`);
                                     
                                     // 最终同步更新
                                     if (window.storyboardData) {

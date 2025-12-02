@@ -97,7 +97,7 @@ router.post('/generate', async (req, res) => {
  * 批量生成分镜图像（流式返回，实时推送）
  */
 router.post('/generate-batch-stream', async (req, res) => {
-  console.log('[SSE] 收到流式生成请求');
+  console.log('[SSE] 收到流式生成请求（电影模式）');
   
   // 设置 SSE 响应头
   res.setHeader('Content-Type', 'text/event-stream');
@@ -106,11 +106,10 @@ router.post('/generate-batch-stream', async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 缓冲
 
   try {
-    const { panels, style, characterRefs, options, mode } = req.body;
+    const { panels, style, characterRefs, options } = req.body;
     const apiKey = extractApiKey(req);
     
-    console.log(`[SSE] 收到流式生成请求，模式: ${mode || '未指定（默认电影模式）'}`);
-    console.log(`[SSE] 接收到的选项:`, {
+    console.log('[SSE] 接收到的选项:', {
       aspectRatio: options?.aspectRatio,
       imageSize: options?.imageSize,
       fullOptions: options
@@ -158,15 +157,14 @@ router.post('/generate-batch-stream', async (req, res) => {
           panelId: panel.id 
         })}\n\n`);
 
-        console.log(`[路由-流式] 生成分镜 ${panel.id}，模式: ${mode}, aspectRatio: ${options?.aspectRatio || '未指定'}`);
+        console.log(`[路由-流式] 生成分镜 ${panel.id}，电影模式 aspectRatio: ${options?.aspectRatio || '未指定'}`);
         
         const result = await generateWithRetry(
           () => service.generateImage(
           prompt,
           style || 'cel-shading',
           characterRefs || {},
-          options || {},
-          mode || 'cinematic'  // 传递模式参数
+          options || {}
           ),
           retryLimit
         );
@@ -267,7 +265,7 @@ router.post('/generate-batch-stream', async (req, res) => {
  */
 router.post('/generate-batch', async (req, res) => {
   try {
-    const { panels, style, characterRefs, options, mode } = req.body;
+    const { panels, style, characterRefs, options } = req.body;
     const apiKey = extractApiKey(req);
 
     if (!panels || !Array.isArray(panels) || panels.length === 0) {
@@ -303,14 +301,13 @@ router.post('/generate-batch', async (req, res) => {
           return;
         }
 
-        console.log(`[批次] [${mode || 'default'}] 正在生成分镜 ${panel.id} 的图像...`);
+        console.log(`[批次] 正在生成分镜 ${panel.id} 的图像...`);
         const result = await generateWithRetry(
           () => service.generateImage(
             prompt,
             style || 'cel-shading',
             characterRefs || {},
-            options || {},
-            mode || 'cinematic'  // 传递模式参数
+          options || {}
           ),
           retryLimit
         );

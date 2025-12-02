@@ -100,22 +100,21 @@ ${script}
   }
 
   /**
-   * 生成图像
+   * 生成图像（电影模式）
    * @param {string} prompt - 图像生成提示词
    * @param {string} style - 艺术风格
    * @param {Object} characterRefs - 角色参考信息
    * @param {Object} options - 生成选项 (aspectRatio, imageSize)
-   * @param {string} mode - 生成模式 ('cinematic' 电影模式 或 'manga' 宫格模式)
    * @returns {Promise<Object>} 包含 imageUrl 和 metadata 的对象
    */
-  async generateImage(prompt, style = 'cel-shading', characterRefs = {}, options = {}, mode = 'cinematic') {
-    console.log(`[GeminiService] 生成图像，模式: ${mode}, 选项:`, {
+  async generateImage(prompt, style = 'cel-shading', characterRefs = {}, options = {}) {
+    console.log('[GeminiService] 生成图像（电影模式），选项:', {
       aspectRatio: options.aspectRatio,
       imageSize: options.imageSize,
       allOptions: options
     });
     
-    const enhancedPrompt = this.buildImagePrompt(prompt, style, characterRefs, mode);
+    const enhancedPrompt = this.buildImagePrompt(prompt, style, characterRefs);
     
     // 直接使用 REST API 调用 v1beta 端点
     return await this.generateImageViaREST(enhancedPrompt, options);
@@ -306,13 +305,12 @@ ${script}
   }
 
   /**
-   * 构建图像生成提示词
+   * 构建图像生成提示词（电影模式）
    * @param {string} basePrompt - 基础提示词
    * @param {string} style - 艺术风格
    * @param {Object} characterRefs - 角色参考信息
-   * @param {string} mode - 生成模式 ('cinematic' 电影模式 或 'manga' 宫格模式)
    */
-  buildImagePrompt(basePrompt, style, characterRefs, mode = 'cinematic') {
+  buildImagePrompt(basePrompt, style, characterRefs) {
     const stylePrompts = {
       'cel-shading': '日系赛璐珞风格，清晰的线条，鲜艳的色彩，',
       'noir': '美漫黑白线稿风格，高对比度，强烈的光影，',
@@ -322,15 +320,8 @@ ${script}
 
     const styleText = stylePrompts[style] || stylePrompts['cel-shading'];
     
-    // 根据模式添加不同的增强提示
-    let modeEnhancement = '';
-    if (mode === 'cinematic') {
-      // 电影模式：强调电影感、镜头语言、景深、动态构图
-      modeEnhancement = '电影级画面质量，专业镜头构图，电影感光影，动态景深，';
-    } else if (mode === 'manga') {
-      // 宫格模式：强调漫画风格、分格布局、线条表现
-      modeEnhancement = '漫画风格，适合分格布局，清晰的线条表现，漫画感构图，';
-    }
+    // 电影模式：强调电影感、镜头语言、景深、动态构图
+    const modeEnhancement = '电影级画面质量，专业镜头构图，电影感光影，动态景深，';
     
     let enhancedPrompt = `${styleText}${modeEnhancement}${basePrompt}`;
 
