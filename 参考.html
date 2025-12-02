@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StoryWeaver AI - 智能分镜与漫画生成平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f5f5f4; /* warm neutral stone-100 */
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e7e5e4; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a8a29e; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #78716c; 
+        }
+
+        /* Manga Panel Styles for Irregular Grid Simulation */
+        .manga-page {
+            aspect-ratio: 1 / 1.414; /* A4 ratio */
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Slanted Panel Simulation using Clip-path */
+        .panel-slanted-1 {
+            clip-path: polygon(0 0, 100% 0, 85% 100%, 0% 100%);
+        }
+        .panel-slanted-2 {
+            clip-path: polygon(15% 0, 100% 0, 100% 100%, 0% 100%);
+        }
+        
+        /* Impact Frame Simulation */
+        .impact-lines {
+            background: repeating-conic-gradient(
+                from 0deg,
+                transparent 0deg 10deg,
+                rgba(0,0,0,0.1) 10deg 20deg
+            );
+        }
+
+        /* Chart Container Strict Styling */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            height: 300px;
+            max-height: 300px;
+        }
+
+        /* Animation for LLM processing */
+        @keyframes pulse-border {
+            0% { border-color: #d6d3d1; }
+            50% { border-color: #ea580c; } /* orange-600 */
+            100% { border-color: #d6d3d1; }
+        }
+        .processing-border {
+            animation: pulse-border 2s infinite;
+            border-width: 2px;
+        }
+    </style>
+    <!-- Chosen Palette: Warm Neutrals (Stone/Warm Gray) with Deep Orange/Amber Accents for creativity and focus. 
+         Background: Stone-100 (#f5f5f4)
+         Surface: White (#ffffff)
+         Text: Stone-800 (#292524)
+         Primary Action: Orange-600 (#ea580c)
+         Secondary: Stone-500 (#78716c)
+    -->
+
+    <!-- Application Structure Plan: 
+         Structure: Sidebar Navigation + Dynamic Main Content Area (Dashboard-style).
+         
+         1. **Sidebar**: Persistent navigation to switching between the core modules defined in the report: 
+            - Script Studio (剧本中心)
+            - Character Bank (角色库)
+            - Storyboard Canvas (分镜画布 - The Core)
+            - Settings (设置)
+         
+         2. **Dashboard/Overview**: High-level stats from the report's workflow (Scripts processed, Panels generated).
+         
+         3. **Script Studio**: The entry point. A text area for inputting the script. Key interaction is the "Analyze" button which triggers the logic described in Section 3.1 & 4.1 (Input Analysis Agent).
+         
+         4. **Storyboard Canvas**: The visualization heart.
+            - **Toggle**: Switch between "Cinematic Mode" (Linear) and "Manga Mode" (Grid).
+            - **Manga Mode**: Visualizes the "Irregular Grid" concept from Section 5. Uses CSS Grid/Flex/Clip-path to simulate the layout engine result.
+            - **Cinematic Mode**: Shows a list of shots with camera metadata.
+         
+         5. **Logic**: JS handles the flow from Script -> Parsed JSON (simulated LLM) -> Visualization. 
+         
+         Rationale: This structure separates the "Creative Input" (Writing) from the "Visual Output" (Storyboarding), mirroring the production pipeline described in the report.
+    -->
+
+    <!-- Visualization & Content Choices:
+         1. **Shot Distribution Chart (Chart.js)**: 
+            - Goal: Inform the user about the pacing and visual variety of their storyboard.
+            - Logic: Counts 'Close-up', 'Wide', 'Action' tags from the simulated LLM output.
+            - Justification: Helps the "Director" balance the visual narrative (Section 3.1).
+         
+         2. **LLM Pipeline Visualizer (HTML/CSS)**:
+            - Goal: Explain the invisible "Prompt Engineering Architecture" (Section 4).
+            - Method: A 3-step flow diagram (Input -> Director -> Visual) using styled divs.
+            - Interaction: Lights up during "processing".
+         
+         3. **Manga Page Preview (HTML/CSS)**:
+            - Goal: Demonstrate the "Manga Layout Engine" (Section 5).
+            - Method: A complex CSS Grid layout with clip-paths to show "Slanted Panels" and "Impact Frames".
+            - Interaction: Hover effects to show prompt details.
+         
+         4. **Character Cards**:
+            - Goal: Manage consistency (Section 3.2).
+            - Method: Grid of cards with image placeholders and prompt text.
+    -->
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="text-stone-800 h-screen flex overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-stone-200 flex flex-col shadow-sm z-10 hidden md:flex">
+        <div class="p-6 border-b border-stone-100">
+            <h1 class="text-2xl font-bold text-stone-800 tracking-tight flex items-center gap-2">
+                <span class="text-3xl">🧶</span> StoryWeaver
+            </h1>
+            <p class="text-xs text-stone-500 mt-1">智能分镜与漫画生成平台</p>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-2">
+            <button onclick="navTo('dashboard')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg bg-orange-50 text-orange-700 transition-colors">
+                <span>📊</span> 概览 (Overview)
+            </button>
+            <button onclick="navTo('script')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-stone-600 hover:bg-stone-50 transition-colors">
+                <span>📝</span> 剧本中心 (Script)
+            </button>
+            <button onclick="navTo('characters')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-stone-600 hover:bg-stone-50 transition-colors">
+                <span>👥</span> 角色库 (Characters)
+            </button>
+            <button onclick="navTo('storyboard')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-stone-600 hover:bg-stone-50 transition-colors">
+                <span>🎬</span> 故事板 (Canvas)
+            </button>
+            <button onclick="navTo('settings')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-stone-600 hover:bg-stone-50 transition-colors">
+                <span>⚙️</span> 系统设置 (Settings)
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-stone-100">
+            <div class="bg-stone-100 rounded-lg p-3 text-xs text-stone-500">
+                <p class="font-bold mb-1">模型状态</p>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span> Logic: Gemini 1.5
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span> Img: Gemini 3 Pro
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Mobile Nav Header -->
+    <div class="md:hidden fixed top-0 w-full bg-white border-b border-stone-200 z-50 p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold">StoryWeaver AI</h1>
+        <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" class="p-2 bg-stone-100 rounded">☰</button>
+    </div>
+    <div id="mobile-menu" class="hidden fixed top-16 w-full bg-white border-b border-stone-200 z-40 p-4 shadow-lg md:hidden">
+        <div class="flex flex-col space-y-2">
+            <button onclick="navTo('dashboard')" class="block p-2 text-left">概览</button>
+            <button onclick="navTo('script')" class="block p-2 text-left">剧本中心</button>
+            <button onclick="navTo('storyboard')" class="block p-2 text-left">故事板</button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-8 pt-20 md:pt-8 relative">
+        
+        <!-- DASHBOARD VIEW -->
+        <section id="view-dashboard" class="space-y-6">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-stone-800">创作概览</h2>
+                <p class="text-stone-500 mt-2">欢迎回来，导演。这里是您的项目控制中心。</p>
+            </header>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                    <div class="text-sm text-stone-500 mb-1">当前项目</div>
+                    <div class="text-2xl font-bold text-stone-800">赛博朋克：三体前传</div>
+                    <div class="mt-4 flex gap-2">
+                        <span class="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded">科幻</span>
+                        <span class="px-2 py-1 bg-purple-50 text-purple-700 text-xs rounded">悬疑</span>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                    <div class="text-sm text-stone-500 mb-1">分镜生成进度</div>
+                    <div class="text-2xl font-bold text-orange-600">24/120 <span class="text-sm text-stone-400 font-normal">关键帧</span></div>
+                    <div class="w-full bg-stone-100 h-2 rounded-full mt-4 overflow-hidden">
+                        <div class="bg-orange-500 h-full" style="width: 20%"></div>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                    <div class="text-sm text-stone-500 mb-1">API Token 消耗</div>
+                    <div class="text-2xl font-bold text-stone-800">12,450 <span class="text-sm text-stone-400 font-normal">Tokens</span></div>
+                    <p class="text-xs text-stone-400 mt-4">重置日期: 2025-12-01</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- LLM Pipeline Visualizer -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                    <h3 class="text-lg font-bold text-stone-800 mb-4">提示词工程架构 (Live Monitor)</h3>
+                    <p class="text-sm text-stone-500 mb-6">基于《参考系统提示词.txt》的实时处理流。</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                        <div class="p-4 rounded-lg bg-stone-50 border border-stone-200 relative group hover:border-orange-300 transition-colors">
+                            <div class="font-bold text-stone-700">Stage 1: Input Analysis</div>
+                            <div class="text-xs text-stone-500 mt-2">分析主题、角色、情绪</div>
+                            <div class="absolute -right-2 top-1/2 transform -translate-y-1/2 hidden md:block">→</div>
+                        </div>
+                        <div class="p-4 rounded-lg bg-stone-50 border border-stone-200 relative group hover:border-orange-300 transition-colors">
+                            <div class="font-bold text-stone-700">Stage 2: Director Agent</div>
+                            <div class="text-xs text-stone-500 mt-2">故事拆解、镜头布局</div>
+                            <div class="absolute -right-2 top-1/2 transform -translate-y-1/2 hidden md:block">→</div>
+                        </div>
+                        <div class="p-4 rounded-lg bg-stone-50 border border-stone-200 group hover:border-orange-300 transition-colors">
+                            <div class="font-bold text-stone-700">Stage 3: Visual Prompter</div>
+                            <div class="text-xs text-stone-500 mt-2">生成最终 Prompt & 安全清洗</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shot Distribution Chart -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                    <h3 class="text-lg font-bold text-stone-800 mb-2">镜头类型分布</h3>
+                    <p class="text-xs text-stone-500 mb-4">分析当前剧本的视觉节奏</p>
+                    <div class="chart-container">
+                        <canvas id="shotChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SCRIPT STUDIO VIEW -->
+        <section id="view-script" class="space-y-6 hidden">
+            <header class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-3xl font-bold text-stone-800">剧本编辑与分析中心</h2>
+                    <p class="text-stone-500 mt-2">输入剧本，让 LLM 导演为您拆解分镜。</p>
+                </div>
+                <div class="flex gap-3">
+                    <button class="px-4 py-2 bg-white border border-stone-300 rounded-lg text-sm hover:bg-stone-50">导入格式 (.txt/.fountain)</button>
+                    <button onclick="analyzeScript()" class="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 shadow-md flex items-center gap-2">
+                        <span>✨</span> AI 导演分析
+                    </button>
+                </div>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-200px)]">
+                <!-- Editor -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-200 flex flex-col">
+                    <div class="p-3 border-b border-stone-100 bg-stone-50 rounded-t-xl text-xs font-mono text-stone-500 flex justify-between">
+                        <span>SOURCE SCRIPT</span>
+                        <span>Markdown Supported</span>
+                    </div>
+                    <textarea id="scriptInput" class="flex-1 w-full p-6 resize-none focus:outline-none font-mono text-sm leading-relaxed" placeholder="在此输入剧本... 例如：
+场景：夜晚，雨中街道。
+角色：晃（侦探），撑着黑伞。
+动作：晃低头看着地上的证物，神情凝重。突然，一道闪电划过..."></textarea>
+                </div>
+
+                <!-- Analysis Output -->
+                <div class="bg-stone-900 rounded-xl shadow-sm border border-stone-800 flex flex-col overflow-hidden">
+                    <div class="p-3 border-b border-stone-800 bg-stone-950 text-xs font-mono text-stone-400 flex justify-between">
+                        <span>LLM ANALYSIS OUTPUT (JSON)</span>
+                        <span id="analysisStatus" class="text-green-500">Ready</span>
+                    </div>
+                    <div id="analysisResult" class="flex-1 p-6 overflow-y-auto font-mono text-xs text-green-400 leading-relaxed">
+                        // 点击“AI 导演分析”生成结构化分镜数据...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- STORYBOARD CANVAS VIEW -->
+        <section id="view-storyboard" class="space-y-6 hidden">
+            <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 class="text-3xl font-bold text-stone-800">故事板画布</h2>
+                    <p class="text-stone-500 mt-2">将文字转化为视觉艺术。</p>
+                </div>
+                
+                <div class="flex bg-stone-200 p-1 rounded-lg">
+                    <button onclick="switchMode('cinematic')" id="btn-cinematic" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all bg-white text-stone-800 shadow-sm">电影模式</button>
+                    <button onclick="switchMode('manga')" id="btn-manga" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all text-stone-500 hover:text-stone-700">宫格漫画模式</button>
+                </div>
+            </header>
+
+            <!-- Tool Bar -->
+            <div class="bg-white p-3 rounded-lg border border-stone-200 flex flex-wrap gap-4 items-center shadow-sm">
+                <div class="flex items-center gap-2 border-r border-stone-200 pr-4">
+                    <span class="text-xs font-bold text-stone-400">STYLE</span>
+                    <select class="text-sm border-none bg-transparent focus:ring-0 font-medium text-stone-700">
+                        <option>日系赛璐珞 (Cel Shading)</option>
+                        <option>美漫黑白线稿 (Noir)</option>
+                        <option>吉卜力水彩 (Ghibli)</option>
+                        <option>电影实拍感 (Realism)</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 border-r border-stone-200 pr-4">
+                    <span class="text-xs font-bold text-stone-400">ASSETS</span>
+                    <button class="p-1 hover:bg-stone-100 rounded">💬 气泡</button>
+                    <button class="p-1 hover:bg-stone-100 rounded">⚡ 速度线</button>
+                    <button class="p-1 hover:bg-stone-100 rounded">💥 SFX</button>
+                </div>
+                <div class="flex-1"></div>
+                <button class="bg-stone-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-black transition-colors">
+                    🎥 生成分镜图像 (Gemini 3 Pro)
+                </button>
+            </div>
+
+            <!-- Cinematic Mode Content -->
+            <div id="mode-cinematic" class="space-y-4">
+                <div class="flex gap-4 overflow-x-auto pb-4">
+                    <!-- Shot Card 1 -->
+                    <div class="min-w-[300px] bg-white rounded-lg border border-stone-200 shadow-sm overflow-hidden flex flex-col">
+                        <div class="h-40 bg-stone-100 relative group">
+                            <!-- Placeholder for generated image -->
+                            <div class="absolute inset-0 flex items-center justify-center text-stone-400 text-sm">
+                                [Shot 1 Image Placeholder]
+                            </div>
+                            <div class="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">2.5s</div>
+                        </div>
+                        <div class="p-4 flex-1">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded">CLOSE-UP</span>
+                                <span class="text-xs text-stone-400">#01</span>
+                            </div>
+                            <p class="text-sm font-medium text-stone-800 mb-2">角色：晃</p>
+                            <p class="text-xs text-stone-500 leading-relaxed">眼神特写，瞳孔中倒映着蓝色的警灯。雨水顺着脸颊滑落。</p>
+                        </div>
+                    </div>
+
+                    <!-- Shot Card 2 -->
+                    <div class="min-w-[300px] bg-white rounded-lg border border-stone-200 shadow-sm overflow-hidden flex flex-col">
+                        <div class="h-40 bg-stone-100 relative">
+                             <div class="absolute inset-0 flex items-center justify-center text-stone-400 text-sm">
+                                [Shot 2 Image Placeholder]
+                            </div>
+                            <div class="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">4.0s</div>
+                        </div>
+                        <div class="p-4 flex-1">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.5 rounded">WIDE / ESTABLISHING</span>
+                                <span class="text-xs text-stone-400">#02</span>
+                            </div>
+                            <p class="text-sm font-medium text-stone-800 mb-2">场景：街道</p>
+                            <p class="text-xs text-stone-500 leading-relaxed">俯视镜头。街道像一条黑色的河。晃撑着黑伞站在路灯下，孤单的身影。</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Add New -->
+                    <div class="min-w-[100px] flex items-center justify-center border-2 border-dashed border-stone-200 rounded-lg text-stone-400 hover:border-orange-400 hover:text-orange-500 cursor-pointer transition-colors">
+                        <span class="text-2xl">+</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manga Mode Content (The Complex Grid) -->
+            <div id="mode-manga" class="hidden flex justify-center bg-stone-200 p-8 rounded-xl overflow-auto">
+                <!-- Page Container (A4 Ratio) -->
+                <div class="manga-page w-[500px] md:w-[600px] shadow-2xl bg-white p-8">
+                    <!-- Grid Simulation -->
+                    <div class="w-full h-full relative">
+                        
+                        <!-- Panel 1: Top Wide (Slanted Bottom) -->
+                        <div class="absolute top-0 left-0 w-full h-[30%] panel-slanted-1 overflow-hidden border-2 border-black z-10 bg-white group hover:z-20">
+                            <div class="absolute inset-0 bg-stone-50 group-hover:bg-orange-50 transition-colors p-4">
+                                <span class="text-xs font-bold text-stone-400">PANEL 1 (Start)</span>
+                                <p class="text-sm font-bold mt-1">晃推开大门。</p>
+                            </div>
+                        </div>
+
+                        <!-- Panel 2: Middle Left (Slanted Top) -->
+                        <div class="absolute top-[28%] left-0 w-[40%] h-[40%] panel-slanted-2 overflow-hidden border-2 border-black z-10 bg-white group">
+                            <div class="absolute inset-0 bg-stone-50 group-hover:bg-orange-50 transition-colors p-4 pt-12">
+                                <span class="text-xs font-bold text-stone-400">PANEL 2 (Reaction)</span>
+                                <p class="text-sm font-bold mt-1">什么？！</p>
+                            </div>
+                        </div>
+
+                        <!-- Panel 3: Middle Right (Impact Frame) -->
+                        <div class="absolute top-[31%] right-0 w-[58%] h-[35%] border-4 border-black z-10 bg-white overflow-hidden group">
+                            <div class="absolute inset-0 impact-lines opacity-20"></div>
+                            <div class="absolute inset-0 p-4 flex items-center justify-center">
+                                <h1 class="text-4xl font-black italic transform -rotate-6">砰！</h1>
+                            </div>
+                             <div class="absolute top-2 right-2 text-xs font-bold text-stone-400">PANEL 3 (Impact)</div>
+                        </div>
+
+                        <!-- Panel 4: Bottom Wide -->
+                        <div class="absolute bottom-0 left-0 w-full h-[30%] border-2 border-black z-10 bg-white group">
+                             <div class="absolute inset-0 bg-stone-50 group-hover:bg-orange-50 transition-colors p-4">
+                                <span class="text-xs font-bold text-stone-400">PANEL 4 (Resolution)</span>
+                                <p class="text-sm font-bold mt-1">烟雾散去...</p>
+                            </div>
+                        </div>
+
+                        <!-- Gutter Masking (Visual trick for gaps) -->
+                        <div class="absolute inset-0 pointer-events-none" style="z-index: 5;">
+                            <!-- White shapes to create gutters if needed, simpler to use margins in real implementation -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CHARACTERS VIEW -->
+        <section id="view-characters" class="space-y-6 hidden">
+             <header class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-3xl font-bold text-stone-800">角色库 (Consistency Core)</h2>
+                    <p class="text-stone-500 mt-2">定义角色特征，确保 AI 生成的一致性。</p>
+                </div>
+                <button class="px-4 py-2 bg-stone-800 text-white rounded-lg text-sm hover:bg-black">
+                    + 新建角色
+                </button>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Character Card 1 -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden group hover:border-orange-400 transition-all">
+                    <div class="h-48 bg-stone-200 relative">
+                        <div class="absolute inset-0 flex items-center justify-center text-stone-400">
+                            [Character Ref Image]
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold text-stone-800">Akira (晃)</h3>
+                        <div class="flex gap-2 mt-2 mb-4">
+                            <span class="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded">侦探</span>
+                            <span class="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded">冷酷</span>
+                        </div>
+                        <div class="text-xs text-stone-500 font-mono bg-stone-50 p-2 rounded border border-stone-100 h-20 overflow-y-auto">
+                            Base Prompt: Silver messy hair, sharp red eyes, wearing a worn-out beige trench coat, black turtleneck, cybernetic left arm visible...
+                        </div>
+                    </div>
+                </div>
+                
+                 <!-- Character Card 2 -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden group hover:border-orange-400 transition-all">
+                    <div class="h-48 bg-stone-200 relative">
+                        <div class="absolute inset-0 flex items-center justify-center text-stone-400">
+                            [Character Ref Image]
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold text-stone-800">Yuna (优奈)</h3>
+                        <div class="flex gap-2 mt-2 mb-4">
+                            <span class="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded">黑客</span>
+                            <span class="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded">活泼</span>
+                        </div>
+                        <div class="text-xs text-stone-500 font-mono bg-stone-50 p-2 rounded border border-stone-100 h-20 overflow-y-auto">
+                            Base Prompt: Short purple bob cut, neon green visor glasses, oversized hoodie with graphic print, holding a holographic tablet...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+         <!-- SETTINGS VIEW -->
+        <section id="view-settings" class="space-y-6 hidden">
+             <header>
+                <h2 class="text-3xl font-bold text-stone-800">系统设置</h2>
+            </header>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 max-w-2xl">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-stone-700 mb-1">Gemini API Key</label>
+                        <input type="password" placeholder="AIzaSy..." class="w-full p-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                        <p class="text-xs text-stone-500 mt-1">用于访问 Gemini 1.5 Pro (逻辑) 和 Gemini 3 Pro (图像)。</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-stone-700 mb-1">默认导出格式</label>
+                        <select class="w-full p-2 border border-stone-300 rounded-lg bg-white">
+                            <option>PDF (A4 打印)</option>
+                            <option>Long Image (条漫 webtoon)</option>
+                            <option>MP4 (Animatic 预览 - 需 VEO)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- NAVIGATION STATE ---
+        function navTo(viewId) {
+            // Hide all sections
+            const sections = ['dashboard', 'script', 'storyboard', 'characters', 'settings'];
+            sections.forEach(id => {
+                document.getElementById(`view-${id}`).classList.add('hidden');
+            });
+            
+            // Show selected
+            document.getElementById(`view-${viewId}`).classList.remove('hidden');
+
+            // Update Sidebar Active State
+            const buttons = document.querySelectorAll('.nav-btn');
+            buttons.forEach(btn => {
+                btn.classList.remove('bg-orange-50', 'text-orange-700');
+                btn.classList.add('text-stone-600', 'hover:bg-stone-50');
+            });
+
+            // Very simple active state mapping (in a real app, use IDs)
+            const indexMap = { 'dashboard': 0, 'script': 1, 'characters': 2, 'storyboard': 3, 'settings': 4 };
+            if(buttons[indexMap[viewId]]) {
+                buttons[indexMap[viewId]].classList.remove('text-stone-600', 'hover:bg-stone-50');
+                buttons[indexMap[viewId]].classList.add('bg-orange-50', 'text-orange-700');
+            }
+
+            // Close mobile menu if open
+            document.getElementById('mobile-menu').classList.add('hidden');
+
+            // Render charts if dashboard
+            if (viewId === 'dashboard') {
+                renderCharts();
+            }
+        }
+
+        // --- STORYBOARD MODE SWITCH ---
+        function switchMode(mode) {
+            const cinematicBtn = document.getElementById('btn-cinematic');
+            const mangaBtn = document.getElementById('btn-manga');
+            const cinematicView = document.getElementById('mode-cinematic');
+            const mangaView = document.getElementById('mode-manga');
+
+            if (mode === 'cinematic') {
+                cinematicBtn.classList.add('bg-white', 'text-stone-800', 'shadow-sm');
+                cinematicBtn.classList.remove('text-stone-500');
+                mangaBtn.classList.remove('bg-white', 'text-stone-800', 'shadow-sm');
+                mangaBtn.classList.add('text-stone-500');
+                
+                cinematicView.classList.remove('hidden');
+                mangaView.classList.add('hidden');
+            } else {
+                mangaBtn.classList.add('bg-white', 'text-stone-800', 'shadow-sm');
+                mangaBtn.classList.remove('text-stone-500');
+                cinematicBtn.classList.remove('bg-white', 'text-stone-800', 'shadow-sm');
+                cinematicBtn.classList.add('text-stone-500');
+
+                mangaView.classList.remove('hidden');
+                cinematicView.classList.add('hidden');
+            }
+        }
+
+        // --- LOGIC SIMULATION ---
+        function analyzeScript() {
+            const output = document.getElementById('analysisResult');
+            const status = document.getElementById('analysisStatus');
+            const input = document.getElementById('scriptInput').value;
+
+            if (!input.trim()) {
+                output.innerText = "// 错误: 请先输入剧本。";
+                return;
+            }
+
+            // UI Feedback
+            status.innerText = "Processing...";
+            status.classList.remove('text-green-500');
+            status.classList.add('text-orange-500');
+            output.innerText = "// 正在调用 Input Analysis Agent...\n// 正在解析场景与角色...";
+
+            // Simulate LLM Delay
+            setTimeout(() => {
+                status.innerText = "Done";
+                status.classList.remove('text-orange-500');
+                status.classList.add('text-green-500');
+
+                // Simulated JSON Output based on "参考系统提示词.txt" logic
+                const mockResponse = {
+                    "theme": "Cyberpunk Noir",
+                    "characters": ["Akira", "Yuna"],
+                    "plot_structure": {
+                        "start": "Akira investigates the alley.",
+                        "conflict": "Discovery of the device.",
+                        "climax": "Explosion/Ambush.",
+                        "resolution": "Survival."
+                    },
+                    "panels": [
+                        {
+                            "id": 1,
+                            "type": "Close-up",
+                            "prompt": "Cyberpunk style, close-up of Akira's eyes, rain reflecting neon lights, serious expression, high detail...",
+                            "dialogue": "这是..."
+                        },
+                        {
+                            "id": 2,
+                            "type": "Wide Shot",
+                            "prompt": "Cyberpunk style, wide shot of dark alley, rain falling, Akira standing alone under flickering street lamp, moody atmosphere...",
+                            "dialogue": null
+                        },
+                        {
+                            "id": 3,
+                            "type": "Impact/Action",
+                            "prompt": "Cyberpunk style, dynamic angle, explosion in background, Akira diving for cover, debris flying, speed lines...",
+                            "sfx": "BOOM!"
+                        }
+                    ]
+                };
+
+                output.innerText = JSON.stringify(mockResponse, null, 2);
+                
+                // Show notification or redirect prompt
+                // In a real app, this would populate the Storyboard state
+            }, 1500);
+        }
+
+        // --- CHART INITIALIZATION ---
+        let shotChartInstance = null;
+        function renderCharts() {
+            const ctx = document.getElementById('shotChart');
+            if (!ctx) return;
+            
+            // Destroy existing if re-rendering
+            if (shotChartInstance) shotChartInstance.destroy();
+
+            shotChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['特写 (Close-up)', '中景 (Mid)', '全景 (Wide)', '动作 (Action)'],
+                    datasets: [{
+                        data: [8, 12, 5, 4],
+                        backgroundColor: [
+                            '#3b82f6', // blue-500
+                            '#a855f7', // purple-500
+                            '#10b981', // emerald-500
+                            '#f97316'  // orange-500
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                font: { family: "'Noto Sans SC', sans-serif" }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCharts();
+        });
+
+    </script>
+</body>
+</html>
