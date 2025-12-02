@@ -3,20 +3,35 @@ body {
     background-color: #f5f5f4; /* warm neutral stone-100 */
 }
 
+html.dark body {
+    background-color: #0c0a09;
+    color: #f5f5f4;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
 }
 ::-webkit-scrollbar-track {
-    background: #e7e5e4; 
+    background: #e7e5e4;
 }
 ::-webkit-scrollbar-thumb {
-    background: #a8a29e; 
+    background: #a8a29e;
     border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
     background: #78716c; 
+}
+
+html.dark ::-webkit-scrollbar-track {
+    background: #1c1917;
+}
+html.dark ::-webkit-scrollbar-thumb {
+    background: #57534e;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+    background: #a16207;
 }
 
 /* Manga Panel Styles for Irregular Grid Simulation */

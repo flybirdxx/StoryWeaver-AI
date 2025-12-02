@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const analysisService = require('../services/analysisService');
+const { extractApiKey } = require('../utils/apiKey');
 
 /**
  * POST /api/script/analyze
@@ -8,7 +9,8 @@ const analysisService = require('../services/analysisService');
  */
 router.post('/analyze', async (req, res) => {
   try {
-    const { script, characters, apiKey, provider, deepseekKey } = req.body;
+    const { script, characters, provider, deepseekKey } = req.body;
+    const apiKey = extractApiKey(req);
 
     if (!script) {
       return res.status(400).json({ 

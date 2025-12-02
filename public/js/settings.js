@@ -49,7 +49,8 @@ const settings = {
         try {
             const response = await app.apiRequest('/settings/test-key', {
                 method: 'POST',
-                body: JSON.stringify({ apiKey: apiKey })
+                body: JSON.stringify({ apiKey: apiKey }),
+                disableAuth: true
             });
 
             if (response.success) {

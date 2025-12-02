@@ -176,7 +176,10 @@ ${script}
       if (!response.ok) {
         const errorMsg = data.error?.message || data.message || `HTTP ${response.status}: ${response.statusText}`;
         console.error('API 错误响应:', JSON.stringify(data, null, 2));
-        throw new Error(errorMsg);
+        const error = new Error(errorMsg);
+        error.status = response.status;
+        error.code = data.error?.status || data.error?.code || response.status;
+        throw error;
       }
 
       // 打印完整响应以便调试

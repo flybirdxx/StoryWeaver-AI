@@ -11,11 +11,29 @@ const projectRoutes = require('./routes/project');
 const settingsRoutes = require('./routes/settings');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 52300;
+
+const allowAllOrigins = process.env.ALLOW_ALL_ORIGINS === 'true';
+const defaultOrigins = [
+  `http://localhost:${PORT}`,
+  `http://127.0.0.1:${PORT}`,
+  'http://localhost:52310',
+  'http://127.0.0.1:52310'
+];
+const configuredOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const allowedOrigins = configuredOrigins.length > 0 ? configuredOrigins : defaultOrigins;
 
 // 中间件
 app.use(cors({
-  origin: '*',
+  origin(origin, callback) {
+    if (allowAllOrigins || !origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
   credentials: true
@@ -65,6 +83,6 @@ if (!checkEnvironment()) {
 app.listen(PORT, () => {
   console.log(`🚀 StoryWeaver AI 服务器运行在 http://localhost:${PORT}`);
   console.log(`📝 API 文档: http://localhost:${PORT}/api/health`);
-  console.log(`🌐 前端地址: http://localhost:8188 (如果使用 npm run dev)`);
+  console.log(`🌐 前端地址: http://localhost:52310 (如果使用 npm run dev)`);
 });
 

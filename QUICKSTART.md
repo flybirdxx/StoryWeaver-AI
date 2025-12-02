@@ -30,7 +30,7 @@ cp .env.example .env
 
 ```
 GEMINI_API_KEY=your_actual_gemini_api_key_here
-PORT=3000
+PORT=52300
 NODE_ENV=development
 ```
 
@@ -43,8 +43,8 @@ npm run dev
 ```
 
 这将启动：
-- 后端 API 服务器：http://localhost:3000
-- 前端静态服务器：http://localhost:8080
+- 后端 API 服务器：http://localhost:52300
+- 前端静态服务器：http://localhost:52310
 
 #### 方式二：分别启动
 
@@ -59,7 +59,7 @@ npm run client
 
 ### 4. 访问应用
 
-打开浏览器访问：http://localhost:8080
+打开浏览器访问：http://localhost:52310
 
 ## 使用流程
 
@@ -111,7 +111,7 @@ npm run client
 ### API 请求失败
 
 - 检查 `.env` 文件中的 API Key 是否正确
-- 确认后端服务器正在运行（http://localhost:3000）
+- 确认后端服务器正在运行（http://localhost:52300）
 - 检查浏览器控制台的错误信息
 
 ### 端口被占用

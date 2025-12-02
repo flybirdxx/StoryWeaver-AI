@@ -62,18 +62,19 @@ const storyboard = {
             const duration = panel.duration || 3.0;
             const title = panel.dialogue || (panel.prompt || '').slice(0, 60) || '未命名镜头';
 
-            const baseClasses = 'flex gap-3 px-3 py-3 cursor-pointer transition-colors';
+            const baseClasses = 'group relative flex gap-3 px-3 py-3 cursor-grab active:cursor-grabbing transition-colors select-none';
             const activeClasses = isActive
-                ? 'bg-orange-50 border-l-4 border-orange-500'
-                : 'hover:bg-stone-50 border-l-4 border-transparent';
+                ? 'bg-orange-50 dark:bg-orange-950/30 border-l-4 border-orange-500'
+                : 'hover:bg-stone-50 dark:hover:bg-stone-800/60 border-l-4 border-transparent';
 
             return `
-                <div class="${baseClasses} ${activeClasses}" onclick="storyboard.selectPanel(${panel.id})">
+                <div class="${baseClasses} ${activeClasses}" onclick="storyboard.selectPanel(${panel.id})" title="按住可调整分镜顺序（即将上线）">
                     <div class="w-16 h-16 rounded-md bg-stone-100 overflow-hidden flex-shrink-0">
                         ${panel.imageUrl
                             ? `<img src="${panel.imageUrl}" alt="Shot ${panel.id}" class="w-full h-full object-cover" ${panel.imageIsUrl ? 'crossorigin="anonymous"' : ''}>`
-                            : `<div class="w-full h-full flex items-center justify-center text-[10px] text-stone-400">
-                                    Shot ${panel.id}
+                            : `<div class="w-full h-full flex flex-col items-center justify-center gap-1 text-[10px] text-stone-400 animate-pulse">
+                                    <span class="w-10 h-2 bg-stone-300 rounded-full"></span>
+                                    <span class="w-6 h-2 bg-stone-200 rounded-full"></span>
                                </div>`
                         }
                     </div>
@@ -88,6 +89,10 @@ const storyboard = {
                         <p class="text-xs text-stone-800 font-medium truncate">
                             ${title}
                         </p>
+                    </div>
+                    <div class="absolute inset-y-2 -right-2 hidden lg:flex flex-col justify-center gap-1 opacity-0 group-hover:opacity-80 transition-opacity pointer-events-none">
+                        <span class="w-1 h-4 rounded-full bg-stone-300 dark:bg-stone-600"></span>
+                        <span class="w-1 h-4 rounded-full bg-stone-300 dark:bg-stone-600"></span>
                     </div>
                 </div>
             `;
@@ -126,27 +131,28 @@ const storyboard = {
                 <div class="flex-1 bg-stone-900 flex items-center justify-center overflow-hidden">
                     ${panel.imageUrl
                         ? `<img src="${panel.imageUrl}" alt="Shot ${panel.id}" class="w-full h-full object-contain bg-black" ${panel.imageIsUrl ? 'crossorigin="anonymous"' : ''}>`
-                        : `<div class="w-full h-full flex flex-col items-center justify-center text-stone-500 text-sm gap-2">
-                                <span>[Shot ${panel.id} Image Placeholder]</span>
+                        : `<div class="w-full h-full flex flex-col items-center justify-center text-stone-500 text-sm gap-2 animate-pulse">
+                                <span class="w-1/2 h-4 bg-stone-700 rounded-full"></span>
+                                <span class="w-1/3 h-3 bg-stone-800 rounded-full"></span>
                                 <span class="text-xs opacity-70">生成图像后会在此处展示</span>
                            </div>`
                     }
                 </div>
-                <div class="p-4 space-y-3 border-t border-stone-200 bg-white">
+                <div class="p-4 space-y-3 border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
                     ${panel.dialogue
                         ? `<div>
-                                <div class="text-xs font-semibold text-stone-500 mb-1">对白 / 旁白</div>
-                                <p class="text-sm text-stone-800 leading-relaxed">${panel.dialogue}</p>
+                                <div class="text-xs font-semibold text-stone-500 dark:text-stone-300 mb-1">对白 / 旁白</div>
+                                <p class="text-sm text-stone-800 dark:text-stone-100 leading-relaxed">${panel.dialogue}</p>
                            </div>`
                         : ''
                     }
                     <div>
-                        <div class="text-xs font-semibold text-stone-500 mb-1">图像提示词 (Prompt)</div>
-                        <p class="text-xs text-stone-600 leading-relaxed whitespace-pre-wrap">${panel.prompt || '暂无提示词'}</p>
+                        <div class="text-xs font-semibold text-stone-500 dark:text-stone-300 mb-1">图像提示词 (Prompt)</div>
+                        <p class="text-xs text-stone-600 dark:text-stone-200 leading-relaxed whitespace-pre-wrap">${panel.prompt || '暂无提示词'}</p>
                     </div>
                     ${panel.sfx
                         ? `<div>
-                                <div class="text-xs font-semibold text-stone-500 mb-1">音效 / SFX</div>
+                                <div class="text-xs font-semibold text-stone-500 dark:text-stone-300 mb-1">音效 / SFX</div>
                                 <p class="text-xs font-mono text-orange-600">${panel.sfx}</p>
                            </div>`
                         : ''
@@ -248,7 +254,7 @@ const storyboard = {
 
         // 使用流式 API 实时显示
         try {
-            // 使用正确的 API 地址（后端运行在 3000 端口）
+            // 使用正确的 API 地址（后端运行在 52300 端口）
             const apiBaseUrl = app.apiBaseUrl.replace('/api', ''); // 移除 /api 后缀
             const url = `${apiBaseUrl}/api/image/generate-batch-stream`;
             
@@ -256,12 +262,22 @@ const storyboard = {
                 panels: panels,
                 style: style,
                 characterRefs: characterRefs,
-                apiKey: apiKey || undefined,
                 options: options,
                 mode: mode  // 传递模式参数到后端
             };
             
             console.log(`[流式生成] 发送请求，模式: ${mode}, 图片参数:`, options);
+
+            let processingFinished = false;
+
+            if (app && app.processingSteps) {
+                app.processingSteps.start([
+                    '整理角色参考与风格参数...',
+                    '提交分镜批次到 Gemini...',
+                    '等待渲染输出...',
+                    '写入故事板画布...'
+                ]);
+            }
             
             const response = await fetch(url, {
                 method: 'POST',
@@ -305,10 +321,16 @@ const storyboard = {
                                     if (generateBtn) {
                                         generateBtn.textContent = `生成中... 批次 ${data.batchIndex}/${data.batchTotal}`;
                                     }
+                                    if (app && app.processingSteps) {
+                                        app.processingSteps.mark(`批次 ${data.batchIndex}/${data.batchTotal} 已提交`);
+                                    }
                                     break;
                                 
                                 case 'generating':
                                     console.log(`[流式] 正在生成分镜 ${data.panelId}...`);
+                                    if (app && app.processingSteps) {
+                                        app.processingSteps.mark(`渲染分镜 #${data.panelId} 中...`);
+                                    }
                                     break;
                                 
                                 case 'success':
@@ -331,6 +353,9 @@ const storyboard = {
                                         this.render();
                                         
                                         console.log(`✓ [${mode === 'cinematic' ? '电影' : '宫格'}] 分镜 ${panel.id} 图像已生成并显示`);
+                                        if (app && app.processingSteps) {
+                                            app.processingSteps.mark(`分镜 #${panel.id} 已生成`);
+                                        }
                                     }
                                     break;
                                 
@@ -372,6 +397,13 @@ const storyboard = {
                                     } else {
                                         alert(`[${modeName}] 警告：所有分镜都生成失败，请查看控制台日志`);
                                     }
+                                    if (app && app.processingSteps) {
+                                        const msg = data.failed > 0
+                                            ? `已完成，${data.failed} 个分镜需关注`
+                                            : '分镜图像生成完成 ✅';
+                                        app.processingSteps.finish(msg, data.failed > 0 ? 'error' : 'success');
+                                    }
+                                    processingFinished = true;
                                     break;
                             }
                         } catch (parseError) {
@@ -389,7 +421,14 @@ const storyboard = {
             }
             
             alert(`生成失败: ${errorMessage}\n\n请检查:\n1. API Key 是否正确配置且有图像生成权限\n2. 网络连接是否正常\n3. 提示词是否有效`);
+            if (app && app.processingSteps) {
+                app.processingSteps.finish(`分镜图像生成失败：${errorMessage}`, 'error');
+            }
+            processingFinished = true;
         } finally {
+            if (app && app.processingSteps && !processingFinished) {
+                app.processingSteps.hide();
+            }
             // 恢复按钮状态
             if (generateBtn) {
                 generateBtn.disabled = false;

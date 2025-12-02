@@ -1,6 +1,39 @@
 const express = require('express');
 const router = express.Router();
 const geminiService = require('../services/geminiService');
+const { extractApiKey } = require('../utils/apiKey');
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const looksLikeRateLimit = (error) => {
+  if (!error) return false;
+  if (error.status === 429 || error.code === 429) return true;
+  const code = (error.code || error.status || '').toString();
+  if (code.includes('RESOURCE_EXHAUSTED')) return true;
+  return typeof error.message === 'string' && error.message.includes('429');
+};
+
+async function generateWithRetry(fn, retries = Number(process.env.GENERATION_RETRY_LIMIT) || 3) {
+  let attempt = 0;
+  let lastError;
+
+  while (attempt < retries) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (!looksLikeRateLimit(error) || attempt === retries - 1) {
+        throw error;
+      }
+
+      const backoff = Math.pow(2, attempt) * 1000;
+      console.warn(`[图像生成] 命中速率限制，${backoff}ms 后重试 (attempt ${attempt + 1}/${retries})`);
+      await delay(backoff);
+      attempt += 1;
+    }
+  }
+
+  throw lastError;
+}
 
 /**
  * POST /api/image/generate
@@ -17,7 +50,8 @@ const geminiService = require('../services/geminiService');
  */
 router.post('/generate', async (req, res) => {
   try {
-    const { prompt, style, characterRefs, aspectRatio, imageSize, apiKey } = req.body;
+    const { prompt, style, characterRefs, aspectRatio, imageSize } = req.body;
+    const apiKey = extractApiKey(req);
 
     if (!prompt) {
       return res.status(400).json({
@@ -33,15 +67,16 @@ router.post('/generate', async (req, res) => {
       service = new ServiceClass(apiKey);
     }
 
-    // 调用 Gemini 3 Pro Image Preview 生成图像
-    const result = await service.generateImage(
-      prompt, 
-      style || 'cel-shading', 
-      characterRefs || {},
-      {
-        aspectRatio: aspectRatio || '16:9',
-        imageSize: imageSize || '4K'
-      }
+    const result = await generateWithRetry(() =>
+      service.generateImage(
+        prompt, 
+        style || 'cel-shading', 
+        characterRefs || {},
+        {
+          aspectRatio: aspectRatio || '16:9',
+          imageSize: imageSize || '4K'
+        }
+      )
     );
 
     res.json({
@@ -68,11 +103,11 @@ router.post('/generate-batch-stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 缓冲
 
   try {
-    const { panels, style, characterRefs, options, apiKey, mode } = req.body;
+    const { panels, style, characterRefs, options, mode } = req.body;
+    const apiKey = extractApiKey(req);
     
     console.log(`[SSE] 收到流式生成请求，模式: ${mode || '未指定（默认电影模式）'}`);
     console.log(`[SSE] 接收到的选项:`, {
@@ -96,7 +131,8 @@ router.post('/generate-batch-stream', async (req, res) => {
 
     const results = [];
     const errors = [];
-    const batchSize = 3;
+    const batchSize = Math.max(1, Number(process.env.IMAGE_CONCURRENCY) || 3);
+    const retryLimit = Number(process.env.GENERATION_RETRY_LIMIT) || 3;
 
     // 发送开始事件
     res.write(`data: ${JSON.stringify({ 
@@ -124,12 +160,15 @@ router.post('/generate-batch-stream', async (req, res) => {
 
         console.log(`[路由-流式] 生成分镜 ${panel.id}，模式: ${mode}, aspectRatio: ${options?.aspectRatio || '未指定'}`);
         
-        const result = await service.generateImage(
+        const result = await generateWithRetry(
+          () => service.generateImage(
           prompt,
           style || 'cel-shading',
           characterRefs || {},
           options || {},
           mode || 'cinematic'  // 传递模式参数
+          ),
+          retryLimit
         );
         
         const resultData = {
@@ -228,7 +267,8 @@ router.post('/generate-batch-stream', async (req, res) => {
  */
 router.post('/generate-batch', async (req, res) => {
   try {
-    const { panels, style, characterRefs, options, apiKey, mode } = req.body;
+    const { panels, style, characterRefs, options, mode } = req.body;
+    const apiKey = extractApiKey(req);
 
     if (!panels || !Array.isArray(panels) || panels.length === 0) {
       return res.status(400).json({
@@ -247,9 +287,8 @@ router.post('/generate-batch', async (req, res) => {
 
     const results = [];
     const errors = [];
-    
-    // 批次处理：每次同时生成 3 张，全部完成后再进行下一批
-    const batchSize = 3;
+    const batchSize = Math.max(1, Number(process.env.IMAGE_CONCURRENCY) || 3);
+    const retryLimit = Number(process.env.GENERATION_RETRY_LIMIT) || 3;
     
     // 处理单个分镜的函数
     const processPanel = async (panel) => {
@@ -265,12 +304,15 @@ router.post('/generate-batch', async (req, res) => {
         }
 
         console.log(`[批次] [${mode || 'default'}] 正在生成分镜 ${panel.id} 的图像...`);
-        const result = await service.generateImage(
-          prompt,
-          style || 'cel-shading',
-          characterRefs || {},
-          options || {},
-          mode || 'cinematic'  // 传递模式参数
+        const result = await generateWithRetry(
+          () => service.generateImage(
+            prompt,
+            style || 'cel-shading',
+            characterRefs || {},
+            options || {},
+            mode || 'cinematic'  // 传递模式参数
+          ),
+          retryLimit
         );
         
         const resultData = {

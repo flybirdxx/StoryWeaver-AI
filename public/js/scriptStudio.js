@@ -2,6 +2,67 @@
 const scriptStudio = {
     currentAnalysis: null,
 
+    formatAnalysisMarkdown(result) {
+        if (!result) return '// 暂无分析结果';
+
+        const characters = Array.isArray(result.characters) ? result.characters : [];
+        const panels = Array.isArray(result.panels) ? result.panels.slice(0, 5) : [];
+
+        const lines = [
+            '# 🎬 剧本分析摘要',
+            '',
+            `- 主题：${result.theme || '未知'}`,
+            `- 分镜数量：${result.panels?.length || 0}`,
+            `- 生成时间：${new Date().toLocaleString()}`,
+            '',
+            '## 角色一览'
+        ];
+
+        if (characters.length === 0) {
+            lines.push('_暂无角色数据_');
+        } else {
+            lines.push(
+                ...characters.map(char => {
+                    const tags = Array.isArray(char.tags) && char.tags.length > 0
+                        ? `（${char.tags.join(', ')}）`
+                        : '';
+                    return `- **${char.name || '未命名'}** ${tags}：${char.description || char.basePrompt || ''}`;
+                })
+            );
+        }
+
+        lines.push('', '## 分镜示例');
+
+        if (panels.length === 0) {
+            lines.push('_暂无分镜数据_');
+        } else {
+            lines.push(
+                ...panels.map(panel => {
+                    return `- **#${panel.id || '?'} ${panel.type || 'Shot'}**：${panel.prompt || panel.dialogue || '暂无描述'}`;
+                })
+            );
+        }
+
+        lines.push('', '```json', JSON.stringify(result, null, 2), '```');
+        return lines.join('\n');
+    },
+
+    renderAnalysisOutput(result) {
+        const output = document.getElementById('analysisResult');
+        if (!output) return;
+
+        output.classList.remove('font-mono', 'text-green-400');
+        output.classList.add('text-stone-100', 'leading-relaxed', 'tracking-wide');
+
+        const markdown = this.formatAnalysisMarkdown(result);
+        if (window.marked) {
+            output.innerHTML = window.marked.parse(markdown);
+        } else {
+            output.textContent = markdown;
+        }
+        output.scrollTop = 0;
+    },
+
     async analyzeScript() {
         const input = document.getElementById('scriptInput');
         const output = document.getElementById('analysisResult');
@@ -22,17 +83,25 @@ const scriptStudio = {
         status.classList.add('text-orange-500');
         output.innerText = "// 正在调用 Input Analysis Agent...\n// 正在解析场景与角色...";
 
-        // 动画效果
+        // 动画效果 + 感知等待
         if (typeof dashboard !== 'undefined') {
             dashboard.animatePipeline(1);
             setTimeout(() => dashboard.animatePipeline(2), 500);
             setTimeout(() => dashboard.animatePipeline(3), 1000);
         }
 
+        if (app && app.processingSteps) {
+            app.processingSteps.start([
+                '正在解析场景结构...',
+                '识别角色与关系...',
+                '构建镜头提示词...',
+                '等待 LLM 输出...'
+            ]);
+        }
+
         try {
             // 获取角色数据和 API Key
             const existingCharacters = window.charactersData || [];
-            const apiKey = localStorage.getItem('gemini_api_key') || '';
             const deepseekKey = localStorage.getItem('deepseek_api_key') || '';
             const modelSelect = document.getElementById('script-model-select');
             const provider = modelSelect ? (modelSelect.value || 'gemini') : 'gemini';
@@ -42,7 +111,6 @@ const scriptStudio = {
                 body: JSON.stringify({
                     script: scriptText,
                     characters: existingCharacters,
-                    apiKey: apiKey || undefined, // 图像生成仍然使用 Gemini
                     provider,
                     deepseekKey: provider === 'deepseek' ? (deepseekKey || undefined) : undefined
                 })
@@ -52,7 +120,7 @@ const scriptStudio = {
                 status.innerText = "Done";
                 status.classList.remove('text-orange-500');
                 status.classList.add('text-green-500');
-                output.innerText = JSON.stringify(response.data, null, 2);
+                this.renderAnalysisOutput(response.data);
                 
                 // 保存分析结果
                 this.currentAnalysis = response.data;
@@ -65,6 +133,9 @@ const scriptStudio = {
                     if (typeof characters !== 'undefined' && typeof characters.syncFromAnalysis === 'function') {
                         console.log('[脚本分析] 检测到角色列表，开始同步到角色库...', response.data.characters);
                         await characters.syncFromAnalysis(response.data.characters);
+                        if (app && app.processingSteps) {
+                            app.processingSteps.mark('角色特征已同步');
+                        }
                     } else {
                         console.warn('[脚本分析] 找不到 characters 模块或 syncFromAnalysis 方法，跳过自动同步。');
                     }
@@ -119,6 +190,9 @@ const scriptStudio = {
                         notification.remove();
                     }
                 }, 5000);
+                if (app && app.processingSteps) {
+                    app.processingSteps.finish('剧本分析完成 ✅');
+                }
             }
         } catch (error) {
             status.innerText = "Error";
@@ -126,6 +200,9 @@ const scriptStudio = {
             status.classList.add('text-red-500');
             output.innerText = `// 错误: ${error.message}\n// 请检查 API 配置和网络连接。`;
             console.error('分析失败:', error);
+            if (app && app.processingSteps) {
+                app.processingSteps.finish(`剧本分析失败：${error.message}`, 'error');
+            }
         } finally {
             // 重置动画
             if (typeof dashboard !== 'undefined') {

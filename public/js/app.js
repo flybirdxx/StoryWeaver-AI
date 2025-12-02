@@ -1,15 +1,57 @@
 // 应用主入口 - 路由和状态管理
 const app = {
     currentView: 'dashboard',
-    apiBaseUrl: 'http://localhost:3000/api',
+    apiBaseUrl: 'http://localhost:52300/api',
+    theme: 'light',
     
     init() {
         console.log('StoryWeaver AI 初始化...');
+        this.initTheme();
+        this.processingSteps.init();
         this.navTo('dashboard');
         if (typeof dashboard !== 'undefined') {
             dashboard.init();
         }
         this.loadInitialData();
+    },
+
+    initTheme() {
+        const stored = localStorage.getItem('storyweaver_theme');
+        const initialTheme = stored || 'light';
+        this.applyTheme(initialTheme);
+
+        const toggles = document.querySelectorAll('[data-theme-toggle]');
+        toggles.forEach(btn => {
+            btn.addEventListener('click', () => this.toggleTheme());
+        });
+    },
+
+    applyTheme(mode) {
+        this.theme = mode;
+        if (mode === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        localStorage.setItem('storyweaver_theme', mode);
+        this.updateThemeToggle();
+    },
+
+    toggleTheme() {
+        this.applyTheme(this.theme === 'dark' ? 'light' : 'dark');
+    },
+
+    updateThemeToggle() {
+        const icons = document.querySelectorAll('[data-theme-icon]');
+        const labels = document.querySelectorAll('[data-theme-label]');
+
+        icons.forEach(icon => {
+            icon.textContent = this.theme === 'dark' ? '☀️' : '🌙';
+        });
+
+        labels.forEach(label => {
+            label.textContent = this.theme === 'dark' ? '日间模式' : '夜间模式';
+        });
     },
 
     async loadInitialData() {
@@ -95,6 +137,8 @@ const app = {
             buttons[indexMap[viewId]].classList.add('bg-orange-50', 'text-orange-700');
         }
 
+        this.updateMobileNav(viewId);
+
         // 关闭移动端菜单
         const mobileMenu = document.getElementById('mobile-menu');
         if (mobileMenu) mobileMenu.classList.add('hidden');
@@ -110,14 +154,34 @@ const app = {
         }
     },
 
+    updateMobileNav(viewId) {
+        const tabs = document.querySelectorAll('.mobile-tab-btn');
+        tabs.forEach(tab => {
+            const isActive = tab.dataset.view === viewId;
+            tab.classList.toggle('text-orange-600', isActive);
+            tab.classList.toggle('font-semibold', isActive);
+            tab.classList.toggle('text-stone-500', !isActive);
+        });
+    },
+
     async apiRequest(endpoint, options = {}) {
         try {
+            const { disableAuth, ...fetchOptions } = options;
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(fetchOptions.headers || {})
+            };
+
+            if (!disableAuth) {
+                const storedKey = localStorage.getItem('gemini_api_key');
+                if (storedKey && !headers['X-API-Key'] && !headers['Authorization']) {
+                    headers['X-API-Key'] = storedKey;
+                }
+            }
+
             const response = await fetch(`${this.apiBaseUrl}${endpoint}`, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                },
-                ...options
+                ...fetchOptions,
+                headers
             });
 
             if (!response.ok) {
@@ -129,6 +193,102 @@ const app = {
         } catch (error) {
             console.error('API 请求错误:', error);
             throw error;
+        }
+    },
+
+    processingSteps: {
+        panel: null,
+        listEl: null,
+        finalEl: null,
+        timer: null,
+        queue: [],
+        history: [],
+
+        init() {
+            this.panel = document.getElementById('ai-processing-panel');
+            this.listEl = document.getElementById('ai-processing-steps');
+            this.finalEl = document.getElementById('ai-processing-final');
+        },
+
+        ensure() {
+            if (!this.panel) {
+                this.init();
+            }
+        },
+
+        start(steps = []) {
+            this.ensure();
+            if (!this.panel) return;
+            this.clear(true);
+            this.panel.classList.remove('hidden');
+            this.queue = [...steps];
+            this.history = [];
+            if (this.queue.length === 0) return;
+            this.addLine(this.queue.shift());
+            if (this.queue.length > 0) {
+                this.timer = setInterval(() => {
+                    if (!this.queue.length) {
+                        this.stopTimer();
+                        return;
+                    }
+                    this.addLine(this.queue.shift());
+                }, 1800);
+            }
+        },
+
+        addLine(text) {
+            if (!this.listEl) return;
+            this.history.push(text);
+            const recent = this.history.slice(-5);
+            this.listEl.innerHTML = recent.map((msg, idx) => {
+                const isLatest = idx === recent.length - 1;
+                return `<li class="${isLatest ? 'text-orange-500 dark:text-orange-300 font-semibold' : 'text-stone-500 dark:text-stone-400'}">${msg}</li>`;
+            }).join('');
+        },
+
+        mark(text) {
+            this.addLine(text);
+        },
+
+        finish(message, state = 'success') {
+            this.stopTimer();
+            if (!this.panel) return;
+            this.addLine(message);
+            if (this.finalEl) {
+                this.finalEl.textContent = message;
+                this.finalEl.className = state === 'error'
+                    ? 'text-[11px] text-red-500'
+                    : 'text-[11px] text-green-500';
+            }
+            setTimeout(() => this.hide(), 2200);
+        },
+
+        hide() {
+            if (this.panel) {
+                this.panel.classList.add('hidden');
+            }
+            if (this.listEl) {
+                this.listEl.innerHTML = '';
+            }
+            if (this.finalEl) {
+                this.finalEl.textContent = '';
+                this.finalEl.className = 'text-[11px] text-stone-400 dark:text-stone-500';
+            }
+        },
+
+        clear(skipHide = false) {
+            this.stopTimer();
+            this.history = [];
+            if (this.listEl) this.listEl.innerHTML = '';
+            if (this.finalEl) this.finalEl.textContent = '';
+            if (!skipHide) this.hide();
+        },
+
+        stopTimer() {
+            if (this.timer) {
+                clearInterval(this.timer);
+                this.timer = null;
+            }
         }
     }
 };

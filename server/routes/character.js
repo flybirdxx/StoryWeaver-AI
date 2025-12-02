@@ -1,35 +1,94 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
+const db = require('../db');
 
-// 内存存储（实际应用中应使用数据库）
-let characters = [
-  {
-    id: '1',
-    name: 'Akira (晃)',
-    description: '侦探',
-    tags: ['侦探', '冷酷'],
-    basePrompt: 'Silver messy hair, sharp red eyes, wearing a worn-out beige trench coat, black turtleneck, cybernetic left arm visible',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: '2',
-    name: 'Yuna (优奈)',
-    description: '黑客',
-    tags: ['黑客', '活泼'],
-    basePrompt: 'Short purple bob cut, neon green visor glasses, oversized hoodie with graphic print, holding a holographic tablet',
-    createdAt: new Date().toISOString()
+const parseJson = (value, fallback) => {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return fallback;
   }
-];
+};
+
+const mapCharacterRow = (row) => {
+  if (!row) return null;
+
+  if (row.data) {
+    try {
+      const parsed = JSON.parse(row.data);
+      return {
+        ...parsed,
+        id: row.id,
+        tags: Array.isArray(parsed.tags) ? parsed.tags : parseJson(row.tags, []),
+        imageIsUrl: Boolean(parsed.imageIsUrl ?? row.image_is_url)
+      };
+    } catch (_) {
+      // fall through
+    }
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || '',
+    tags: parseJson(row.tags, []),
+    basePrompt: row.base_prompt || '',
+    imageUrl: row.image_url || null,
+    imageIsUrl: Boolean(row.image_is_url),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+};
+
+const insertCharacter = (character) => {
+  const stmt = db.prepare(`
+    INSERT INTO characters
+      (id, name, description, tags, base_prompt, image_url, image_is_url, data, created_at, updated_at)
+    VALUES
+      (@id, @name, @description, @tags, @basePrompt, @imageUrl, @imageIsUrl, @data, @createdAt, @updatedAt)
+  `);
+
+  stmt.run({
+    ...character,
+    tags: JSON.stringify(character.tags || []),
+    imageIsUrl: character.imageIsUrl ? 1 : 0,
+    data: JSON.stringify(character)
+  });
+};
+
+const updateCharacterRow = (character) => {
+  const stmt = db.prepare(`
+    UPDATE characters
+    SET name = @name,
+        description = @description,
+        tags = @tags,
+        base_prompt = @basePrompt,
+        image_url = @imageUrl,
+        image_is_url = @imageIsUrl,
+        data = @data,
+        updated_at = @updatedAt
+    WHERE id = @id
+  `);
+
+  stmt.run({
+    ...character,
+    tags: JSON.stringify(character.tags || []),
+    imageIsUrl: character.imageIsUrl ? 1 : 0,
+    data: JSON.stringify(character)
+  });
+};
 
 /**
  * GET /api/characters
  * 获取所有角色
  */
 router.get('/', (req, res) => {
+  const rows = db.prepare('SELECT * FROM characters ORDER BY datetime(updated_at) DESC').all();
   res.json({
     success: true,
-    data: characters
+    data: rows.map(mapCharacterRow)
   });
 });
 
@@ -60,21 +119,23 @@ router.post('/sync', (req, res) => {
       return;
     }
 
-    const existing = characters.find(
-      c => c.name.toLowerCase() === normalized.name.toLowerCase()
-    );
+    const existingRow = db
+      .prepare('SELECT * FROM characters WHERE LOWER(name) = LOWER(?)')
+      .get(normalized.name.trim());
 
-    if (existing) {
+    const now = new Date().toISOString();
+
+    if (existingRow) {
+      const existing = mapCharacterRow(existingRow);
       const updatedCharacter = {
         ...existing,
         ...(normalized.description && { description: normalized.description }),
         ...(normalized.basePrompt && { basePrompt: normalized.basePrompt }),
         ...(normalized.tags.length > 0 && { tags: normalized.tags }),
-        updatedAt: new Date().toISOString()
+        updatedAt: now
       };
 
-      const index = characters.findIndex(c => c.id === existing.id);
-      characters[index] = updatedCharacter;
+      updateCharacterRow(updatedCharacter);
       summary.updated.push(updatedCharacter.name);
     } else {
       const newCharacter = {
@@ -83,26 +144,32 @@ router.post('/sync', (req, res) => {
         description: normalized.description,
         tags: normalized.tags,
         basePrompt: normalized.basePrompt,
-        createdAt: new Date().toISOString()
+        imageUrl: null,
+        imageIsUrl: false,
+        createdAt: now,
+        updatedAt: now
       };
-      characters.push(newCharacter);
+
+      insertCharacter(newCharacter);
       summary.added.push(newCharacter.name);
     }
   });
+
+  const list = db.prepare('SELECT * FROM characters ORDER BY datetime(updated_at) DESC').all();
 
   res.json({
     success: true,
     data: {
       summary,
-      list: characters
+      list: list.map(mapCharacterRow)
     }
   });
 });
 
 router.get('/:id', (req, res) => {
-  const character = characters.find(c => c.id === req.params.id);
+  const row = db.prepare('SELECT * FROM characters WHERE id = ?').get(req.params.id);
   
-  if (!character) {
+  if (!row) {
     return res.status(404).json({
       error: '未找到角色',
       message: `ID ${req.params.id} 的角色不存在`
@@ -111,7 +178,7 @@ router.get('/:id', (req, res) => {
 
   res.json({
     success: true,
-    data: character
+    data: mapCharacterRow(row)
   });
 });
 
@@ -129,16 +196,20 @@ router.post('/', (req, res) => {
     });
   }
 
+  const now = new Date().toISOString();
   const newCharacter = {
     id: uuidv4(),
-    name,
-    description: description || '',
-    tags: tags || [],
-    basePrompt: basePrompt || '',
-    createdAt: new Date().toISOString()
+    name: name.trim(),
+    description: description ? description.trim() : '',
+    tags: Array.isArray(tags) ? tags : [],
+    basePrompt: basePrompt ? basePrompt.trim() : '',
+    imageUrl: null,
+    imageIsUrl: false,
+    createdAt: now,
+    updatedAt: now
   };
 
-  characters.push(newCharacter);
+  insertCharacter(newCharacter);
 
   res.status(201).json({
     success: true,
@@ -151,31 +222,33 @@ router.post('/', (req, res) => {
  * 更新角色
  */
 router.put('/:id', (req, res) => {
-  const characterIndex = characters.findIndex(c => c.id === req.params.id);
+  const row = db.prepare('SELECT * FROM characters WHERE id = ?').get(req.params.id);
   
-  if (characterIndex === -1) {
+  if (!row) {
     return res.status(404).json({
       error: '未找到角色',
       message: `ID ${req.params.id} 的角色不存在`
     });
   }
 
+  const existing = mapCharacterRow(row);
   const { name, description, tags, basePrompt, imageUrl, imageIsUrl } = req.body;
-  
-  characters[characterIndex] = {
-    ...characters[characterIndex],
-    ...(name && { name }),
-    ...(description !== undefined && { description }),
-    ...(tags && { tags }),
-    ...(basePrompt !== undefined && { basePrompt }),
+  const updatedCharacter = {
+    ...existing,
+    ...(name !== undefined && { name: name.trim() }),
+    ...(description !== undefined && { description: description || '' }),
+    ...(Array.isArray(tags) && { tags }),
+    ...(basePrompt !== undefined && { basePrompt: basePrompt || '' }),
     ...(imageUrl !== undefined && { imageUrl }),
-    ...(imageIsUrl !== undefined && { imageIsUrl }),
+    ...(imageIsUrl !== undefined && { imageIsUrl: Boolean(imageIsUrl) }),
     updatedAt: new Date().toISOString()
   };
 
+  updateCharacterRow(updatedCharacter);
+
   res.json({
     success: true,
-    data: characters[characterIndex]
+    data: updatedCharacter
   });
 });
 
@@ -184,16 +257,14 @@ router.put('/:id', (req, res) => {
  * 删除角色
  */
 router.delete('/:id', (req, res) => {
-  const characterIndex = characters.findIndex(c => c.id === req.params.id);
+  const result = db.prepare('DELETE FROM characters WHERE id = ?').run(req.params.id);
   
-  if (characterIndex === -1) {
+  if (result.changes === 0) {
     return res.status(404).json({
       error: '未找到角色',
       message: `ID ${req.params.id} 的角色不存在`
     });
   }
-
-  characters.splice(characterIndex, 1);
 
   res.json({
     success: true,

@@ -5,18 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StoryWeaver AI - 智能分镜与漫画生成平台</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        };
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class="text-stone-800 h-screen flex overflow-hidden">
+<body class="text-stone-800 dark:text-stone-100 bg-stone-50 dark:bg-stone-950 h-screen flex overflow-hidden transition-colors duration-300">
     <!-- Sidebar -->
-    <aside class="w-64 bg-white border-r border-stone-200 flex flex-col shadow-sm z-10 hidden md:flex">
-        <div class="p-6 border-b border-stone-100">
-            <h1 class="text-2xl font-bold text-stone-800 tracking-tight flex items-center gap-2">
-                <span class="text-3xl">🧶</span> StoryWeaver
-            </h1>
-            <p class="text-xs text-stone-500 mt-1">智能分镜与漫画生成平台</p>
+    <aside class="w-64 bg-white dark:bg-stone-900 border-r border-stone-200 dark:border-stone-800 flex flex-col shadow-sm dark:shadow-black/30 z-10 hidden md:flex transition-colors duration-300">
+        <div class="p-6 border-b border-stone-100 dark:border-stone-800 space-y-4">
+            <div>
+                <h1 class="text-2xl font-bold text-stone-800 dark:text-white tracking-tight flex items-center gap-2">
+                    <span class="text-3xl">🧶</span> StoryWeaver
+                </h1>
+                <p class="text-xs text-stone-500 dark:text-stone-400 mt-1">智能分镜与漫画生成平台</p>
+            </div>
+            <button data-theme-toggle class="w-full px-3 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-xs font-semibold text-stone-600 dark:text-stone-200 flex items-center justify-center gap-2 transition-colors">
+                <span data-theme-icon>🌙</span>
+                <span data-theme-label>夜间模式</span>
+            </button>
         </div>
 
         <nav class="flex-1 p-4 space-y-2">
@@ -37,9 +49,9 @@
             </button>
         </nav>
 
-        <div class="p-4 border-t border-stone-100">
-            <div class="bg-stone-100 rounded-lg p-3 text-xs text-stone-500">
-                <p class="font-bold mb-1">模型状态</p>
+        <div class="p-4 border-t border-stone-100 dark:border-stone-800">
+            <div class="bg-stone-100 dark:bg-stone-800 rounded-lg p-3 text-xs text-stone-500 dark:text-stone-300 transition-colors">
+                <p class="font-bold mb-1 text-stone-700 dark:text-white">模型状态</p>
                 <div class="flex items-center gap-2 mb-1">
                     <span class="w-2 h-2 rounded-full bg-green-500"></span> Logic: Gemini 3 Pro
                 </div>
@@ -51,11 +63,16 @@
     </aside>
 
     <!-- Mobile Nav Header -->
-    <div class="md:hidden fixed top-0 w-full bg-white border-b border-stone-200 z-50 p-4 flex justify-between items-center">
+    <div class="md:hidden fixed top-0 w-full bg-white/90 dark:bg-stone-900/90 border-b border-stone-200 dark:border-stone-800 z-50 p-4 flex justify-between items-center gap-3 backdrop-blur">
         <h1 class="text-xl font-bold">StoryWeaver AI</h1>
-        <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" class="p-2 bg-stone-100 rounded">☰</button>
+        <div class="flex items-center gap-2">
+            <button data-theme-toggle class="p-2 rounded-full border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-xs flex items-center gap-1">
+                <span data-theme-icon>🌙</span>
+            </button>
+            <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" class="p-2 bg-stone-100 dark:bg-stone-800 rounded">☰</button>
+        </div>
     </div>
-    <div id="mobile-menu" class="hidden fixed top-16 w-full bg-white border-b border-stone-200 z-40 p-4 shadow-lg md:hidden">
+    <div id="mobile-menu" class="hidden fixed top-16 w-full bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 z-40 p-4 shadow-lg md:hidden">
         <div class="flex flex-col space-y-2">
             <button onclick="app.navTo('dashboard')" class="block p-2 text-left">概览</button>
             <button onclick="app.navTo('script')" class="block p-2 text-left">剧本中心</button>
@@ -64,7 +81,7 @@
     </div>
 
     <!-- Main Content -->
-    <main class="flex-1 overflow-y-auto p-4 md:p-8 pt-20 md:pt-8 relative">
+    <main class="flex-1 overflow-y-auto p-4 md:p-8 pt-20 md:pt-8 pb-32 md:pb-8 relative transition-colors duration-300">
         <!-- DASHBOARD VIEW -->
         <section id="view-dashboard" class="space-y-6">
             <header class="mb-8">
@@ -75,7 +92,7 @@
             <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
                 <!-- Bookshelf -->
                 <aside class="xl:col-span-1 space-y-4">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100 h-full flex flex-col">
+                    <div class="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 h-full flex flex-col transition-colors">
                         <div class="flex items-center justify-between mb-4">
                             <div>
                                 <h3 class="text-lg font-bold text-stone-800">书架</h3>
@@ -83,7 +100,7 @@
                             </div>
                             <button onclick="app.navTo('script')" class="text-xs text-orange-600 hover:text-orange-700">+ 新剧本</button>
                         </div>
-                        <div id="bookshelf-empty" class="text-sm text-stone-400 bg-stone-50 border border-dashed border-stone-200 rounded-lg p-4 text-center">
+                        <div id="bookshelf-empty" class="text-sm text-stone-400 dark:text-stone-500 bg-stone-50 dark:bg-stone-800/50 border border-dashed border-stone-200 dark:border-stone-700 rounded-lg p-4 text-center">
                             还没有保存的剧本。请在剧本中心分析后，点击“保存到书架”。
                         </div>
                         <div id="bookshelf-list" class="space-y-3 overflow-y-auto pr-2 flex-1"></div>
@@ -93,7 +110,7 @@
                 <!-- Project Overview -->
                 <div class="xl:col-span-3 space-y-6" id="project-overview-wrapper">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                        <div class="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
                             <div class="flex items-start justify-between gap-4">
                                 <div>
                                     <div class="text-sm text-stone-500 mb-1">当前项目</div>
@@ -106,7 +123,7 @@
                             </div>
                             <div class="mt-4 flex gap-2 flex-wrap" id="current-project-tags"></div>
                         </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                        <div class="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
                             <div class="flex items-center justify-between mb-4">
                                 <div>
                                     <div class="text-sm text-stone-500 mb-1">概览支持的功能</div>
@@ -133,60 +150,60 @@
 
                     <!-- Stats Grid -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
-                            <div class="text-sm text-stone-500 mb-1">分镜生成进度</div>
-                            <div class="text-2xl font-bold text-orange-600" id="panel-progress">0/0 <span class="text-sm text-stone-400 font-normal">关键帧</span></div>
+                        <div class="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
+                            <div class="text-sm text-stone-500 dark:text-stone-400 mb-1">分镜生成进度</div>
+                            <div class="text-4xl font-black tracking-tight text-orange-500" id="panel-progress">0/0 <span class="text-sm text-stone-400 font-normal">关键帧</span></div>
                             <div class="w-full bg-stone-100 h-2 rounded-full mt-4 overflow-hidden">
                                 <div class="bg-orange-500 h-full" id="panel-progress-bar" style="width: 0%"></div>
                             </div>
                         </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
-                            <div class="text-sm text-stone-500 mb-1">项目节奏</div>
+                        <div class="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
+                            <div class="text-sm text-stone-500 dark:text-stone-400 mb-1">项目节奏</div>
                             <div class="flex items-center justify-between">
                                 <div>
                                     <div class="text-sm text-stone-400">分镜数量</div>
-                                    <div class="text-xl font-bold text-stone-800" id="project-panels-count">0</div>
+                                    <div class="text-3xl font-black text-stone-800 dark:text-stone-100" id="project-panels-count">0</div>
                                 </div>
                                 <div class="text-right">
                                     <div class="text-sm text-stone-400">阶段</div>
-                                    <div class="text-xl font-bold text-stone-800" id="project-stage-label">等待分析</div>
+                                    <div class="text-2xl font-black text-stone-800 dark:text-stone-100" id="project-stage-label">等待分析</div>
                                 </div>
                             </div>
                             <p class="text-xs text-stone-400 mt-4" id="project-stage-note">在剧本中心完成一次分析后，可解锁更多可视化。</p>
                         </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
-                            <div class="text-sm text-stone-500 mb-1">API Token 消耗</div>
-                            <div class="text-2xl font-bold text-stone-800">12,450 <span class="text-sm text-stone-400 font-normal">Tokens</span></div>
+                        <div class="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
+                            <div class="text-sm text-stone-500 dark:text-stone-400 mb-1">API Token 消耗</div>
+                            <div class="text-4xl font-black text-stone-800 dark:text-stone-100">12,450 <span class="text-sm text-stone-400 font-normal">Tokens</span></div>
                             <p class="text-xs text-stone-400 mt-4">重置日期: 2025-12-01</p>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <!-- LLM Pipeline Visualizer -->
-                        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                        <div class="lg:col-span-2 bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
                             <h3 class="text-lg font-bold text-stone-800 mb-4">提示词工程架构 (Live Monitor)</h3>
                             <p class="text-sm text-stone-500 mb-6">基于系统提示词的实时处理流。</p>
                             
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                                <div class="p-4 rounded-lg bg-stone-50 border border-stone-200 relative group hover:border-orange-300 transition-colors" id="stage-1">
-                                    <div class="font-bold text-stone-700">Stage 1: Input Analysis</div>
-                                    <div class="text-xs text-stone-500 mt-2">分析主题、角色、情绪</div>
+                                <div class="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 relative group hover:border-blue-400 transition-colors" id="stage-1">
+                                    <div class="font-bold text-blue-900 dark:text-blue-200">Stage 1: Input Analysis</div>
+                                    <div class="text-xs text-blue-700 dark:text-blue-300 mt-2">分析主题、角色、情绪</div>
                                     <div class="absolute -right-2 top-1/2 transform -translate-y-1/2 hidden md:block">→</div>
                                 </div>
-                                <div class="p-4 rounded-lg bg-stone-50 border border-stone-200 relative group hover:border-orange-300 transition-colors" id="stage-2">
-                                    <div class="font-bold text-stone-700">Stage 2: Director Agent</div>
-                                    <div class="text-xs text-stone-500 mt-2">故事拆解、镜头布局</div>
+                                <div class="p-4 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900 relative group hover:border-purple-400 transition-colors" id="stage-2">
+                                    <div class="font-bold text-purple-900 dark:text-purple-200">Stage 2: Director Agent</div>
+                                    <div class="text-xs text-purple-700 dark:text-purple-300 mt-2">故事拆解、镜头布局</div>
                                     <div class="absolute -right-2 top-1/2 transform -translate-y-1/2 hidden md:block">→</div>
                                 </div>
-                                <div class="p-4 rounded-lg bg-stone-50 border border-stone-200 group hover:border-orange-300 transition-colors" id="stage-3">
-                                    <div class="font-bold text-stone-700">Stage 3: Visual Prompter</div>
-                                    <div class="text-xs text-stone-500 mt-2">生成最终 Prompt & 安全清洗</div>
+                                <div class="p-4 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900 group hover:border-orange-400 transition-colors" id="stage-3">
+                                    <div class="font-bold text-orange-900 dark:text-orange-200">Stage 3: Visual Prompter</div>
+                                    <div class="text-xs text-orange-700 dark:text-orange-300 mt-2">生成最终 Prompt & 安全清洗</div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Shot Distribution Chart -->
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                        <div class="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
                             <h3 class="text-lg font-bold text-stone-800 mb-2">镜头类型分布</h3>
                             <p class="text-xs text-stone-500 mb-4">分析当前剧本的视觉节奏</p>
                             <div class="chart-container">
@@ -213,7 +230,7 @@
                 </div>
             </header>
 
-            <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-4">
+            <div class="bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 p-4 transition-colors">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-stone-700 mb-1">项目标题</label>
@@ -242,24 +259,24 @@
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-240px)]">
                 <!-- Editor -->
-                <div class="bg-white rounded-xl shadow-sm border border-stone-200 flex flex-col">
-                    <div class="p-3 border-b border-stone-100 bg-stone-50 rounded-t-xl text-xs font-mono text-stone-500 flex justify-between">
+                <div class="bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 flex flex-col transition-colors">
+                    <div class="p-3 border-b border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/60 rounded-t-xl text-xs font-mono text-stone-500 dark:text-stone-300 flex justify-between">
                         <span>SOURCE SCRIPT</span>
                         <span>Markdown Supported</span>
                     </div>
-                    <textarea id="scriptInput" class="flex-1 w-full p-6 resize-none focus:outline-none font-mono text-sm leading-relaxed" placeholder="在此输入剧本... 例如：
+                    <textarea id="scriptInput" class="flex-1 w-full p-6 resize-none focus:outline-none font-mono text-sm leading-relaxed bg-white dark:bg-stone-950 dark:text-stone-100 transition-colors" placeholder="在此输入剧本... 例如：
 场景：夜晚，雨中街道。
 角色：晃（侦探），撑着黑伞。
 动作：晃低头看着地上的证物，神情凝重。突然，一道闪电划过..."></textarea>
                 </div>
 
                 <!-- Analysis Output -->
-                <div class="bg-stone-900 rounded-xl shadow-sm border border-stone-800 flex flex-col overflow-hidden">
-                    <div class="p-3 border-b border-stone-800 bg-stone-950 text-xs font-mono text-stone-400 flex justify-between">
+                <div class="bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 flex flex-col overflow-hidden transition-colors">
+                    <div class="p-3 border-b border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 text-xs font-mono text-stone-500 dark:text-stone-400 flex justify-between">
                         <span>LLM ANALYSIS OUTPUT (JSON)</span>
-                        <span id="analysisStatus" class="text-green-500">Ready</span>
+                        <span id="analysisStatus" class="text-stone-500 dark:text-green-400">Ready</span>
                     </div>
-                    <div id="analysisResult" class="flex-1 p-6 overflow-y-auto font-mono text-xs text-green-400 leading-relaxed">
+                    <div id="analysisResult" class="flex-1 p-6 overflow-y-auto font-mono text-xs text-stone-600 dark:text-green-400 leading-relaxed bg-white dark:bg-stone-900">
                         // 点击"AI 导演分析"生成结构化分镜数据...
                     </div>
                 </div>
@@ -276,21 +293,21 @@
                 </header>
 
                 <!-- Tool Bar -->
-                <div class="bg-white p-3 rounded-lg border border-stone-200 flex flex-wrap gap-4 items-center shadow-sm">
-                    <div class="flex items-center gap-2 border-r border-stone-200 pr-4">
-                        <span class="text-xs font-bold text-stone-400">STYLE</span>
-                        <select id="art-style" class="text-sm border-none bg-transparent focus:ring-0 font-medium text-stone-700">
+                <div class="bg-white dark:bg-stone-900 p-3 rounded-lg border border-stone-200 dark:border-stone-800 flex flex-wrap gap-4 items-center shadow-sm dark:shadow-black/30 transition-colors">
+                    <div class="flex items-center gap-2 border-r border-stone-200 dark:border-stone-800 pr-4">
+                        <span class="text-xs font-bold text-stone-400 dark:text-stone-500">STYLE</span>
+                        <select id="art-style" class="text-sm border-none bg-transparent focus:ring-0 font-medium text-stone-700 dark:text-stone-100">
                             <option value="cel-shading">日系赛璐珞 (Cel Shading)</option>
                             <option value="noir">美漫黑白线稿 (Noir)</option>
                             <option value="ghibli">吉卜力水彩 (Ghibli)</option>
                             <option value="realism">电影实拍感 (Realism)</option>
                         </select>
                     </div>
-                    <div class="flex items-center gap-2 border-r border-stone-200 pr-4">
-                        <span class="text-xs font-bold text-stone-400">ASSETS</span>
-                        <button class="p-1 hover:bg-stone-100 rounded">💬 气泡</button>
-                        <button class="p-1 hover:bg-stone-100 rounded">⚡ 速度线</button>
-                        <button class="p-1 hover:bg-stone-100 rounded">💥 SFX</button>
+                    <div class="flex items-center gap-2 border-r border-stone-200 dark:border-stone-800 pr-4">
+                        <span class="text-xs font-bold text-stone-400 dark:text-stone-500">ASSETS</span>
+                        <button class="p-1 hover:bg-stone-100 dark:hover:bg-stone-800 rounded">💬 气泡</button>
+                        <button class="p-1 hover:bg-stone-100 dark:hover:bg-stone-800 rounded">⚡ 速度线</button>
+                        <button class="p-1 hover:bg-stone-100 dark:hover:bg-stone-800 rounded">💥 SFX</button>
                     </div>
                     <div class="flex-1"></div>
                     <button onclick="storyboard.generateImages()" class="bg-stone-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-black transition-colors">
@@ -301,12 +318,12 @@
                 <!-- Canvas Layout: Left shot list + Right preview / details -->
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-260px)]">
                     <!-- Left: Shot list -->
-                    <div class="lg:col-span-5 bg-white rounded-xl shadow-sm border border-stone-200 flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-stone-100 bg-stone-50 text-xs text-stone-500 flex justify-between items-center">
+                    <div class="lg:col-span-5 bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 flex flex-col overflow-hidden transition-colors">
+                        <div class="px-4 py-3 border-b border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/60 text-xs text-stone-500 flex justify-between items-center">
                             <span class="font-mono">SHOT LIST</span>
                             <span id="storyboard-panel-count" class="text-[11px] text-stone-400">0 分镜</span>
                         </div>
-                        <div id="storyboard-panel-list" class="flex-1 overflow-y-auto divide-y divide-stone-100">
+                        <div id="storyboard-panel-list" class="flex-1 overflow-y-auto divide-y divide-stone-100 dark:divide-stone-800">
                             <!-- 动态生成的分镜列表 -->
                         </div>
                     </div>
@@ -314,14 +331,14 @@
                     <!-- Right: Preview & details -->
                     <div class="lg:col-span-7 flex flex-col space-y-4">
                         <!-- 当前分镜预览 -->
-                        <div id="storyboard-panel-preview" class="bg-white rounded-xl shadow-sm border border-stone-200 flex-1 min-h-[260px] overflow-hidden">
+                        <div id="storyboard-panel-preview" class="bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 flex-1 min-h-[260px] overflow-hidden transition-colors">
                             <!-- 动态生成的预览内容 -->
                         </div>
                         <!-- 下方可扩展：整体节奏/统计信息，占用原本空白区域 -->
-                        <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-4 text-xs text-stone-500">
+                        <div class="bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 p-4 text-xs text-stone-500 dark:text-stone-400 transition-colors">
                             <div class="flex items-center justify-between mb-2">
-                                <span class="font-semibold text-stone-700 text-sm">项目节奏 & 提示</span>
-                                <span class="text-[11px] text-stone-400">来自剧本分析的全局信息</span>
+                                <span class="font-semibold text-stone-700 dark:text-stone-100 text-sm">项目节奏 & 提示</span>
+                                <span class="text-[11px] text-stone-400 dark:text-stone-500">来自剧本分析的全局信息</span>
                             </div>
                             <p>
                                 左侧选择任意分镜，可以在上方预览区查看大图、对白与提示词。
@@ -361,7 +378,7 @@
             <header>
                 <h2 class="text-3xl font-bold text-stone-800">系统设置</h2>
             </header>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 max-w-2xl">
+            <div class="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 max-w-2xl transition-colors">
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-stone-700 mb-1">Gemini API Key</label>
@@ -399,9 +416,43 @@
         </section>
     </main>
 
+    <!-- Mobile Bottom Navigation -->
+    <nav id="mobile-tabbar" class="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-stone-900/95 border-t border-stone-200 dark:border-stone-800 z-40 flex justify-around py-2">
+        <button class="mobile-tab-btn flex flex-col items-center text-xs text-stone-500 gap-1" data-view="dashboard" onclick="app.navTo('dashboard')">
+            <span>📊</span>
+            <span>概览</span>
+        </button>
+        <button class="mobile-tab-btn flex flex-col items-center text-xs text-stone-500 gap-1" data-view="script" onclick="app.navTo('script')">
+            <span>📝</span>
+            <span>剧本</span>
+        </button>
+        <button class="mobile-tab-btn flex flex-col items-center text-xs text-stone-500 gap-1" data-view="characters" onclick="app.navTo('characters')">
+            <span>👥</span>
+            <span>角色</span>
+        </button>
+        <button class="mobile-tab-btn flex flex-col items-center text-xs text-stone-500 gap-1" data-view="storyboard" onclick="app.navTo('storyboard')">
+            <span>🎬</span>
+            <span>故事板</span>
+        </button>
+        <button class="mobile-tab-btn flex flex-col items-center text-xs text-stone-500 gap-1" data-view="settings" onclick="app.navTo('settings')">
+            <span>⚙️</span>
+            <span>设置</span>
+        </button>
+    </nav>
+
     <!-- Character Create Modal -->
+    <!-- AI Processing Panel -->
+    <div id="ai-processing-panel" class="hidden fixed right-3 bottom-28 md:right-6 md:bottom-6 w-64 bg-white/95 dark:bg-stone-900/90 border border-stone-200 dark:border-stone-700 rounded-2xl shadow-2xl backdrop-blur p-4 text-xs space-y-2 z-40">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+            <span class="font-semibold text-stone-700 dark:text-stone-100">AI 导演正在思考</span>
+        </div>
+        <ul id="ai-processing-steps" class="space-y-1 text-stone-500 dark:text-stone-300 font-medium list-disc list-inside text-[11px]"></ul>
+        <div id="ai-processing-final" class="text-[11px] text-stone-400 dark:text-stone-500"></div>
+    </div>
+
     <div id="character-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-        <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+        <div class="bg-white dark:bg-stone-900 rounded-xl p-6 max-w-md w-full mx-4 border border-stone-200 dark:border-stone-700">
             <h3 class="text-xl font-bold mb-4">新建角色</h3>
             <form id="character-form" onsubmit="characters.createCharacter(event)" class="space-y-4">
                 <div>

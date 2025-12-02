@@ -34,11 +34,11 @@ const characters = {
         }
 
         container.innerHTML = this.charactersList.map(char => `
-            <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden group hover:border-orange-400 transition-all">
-                <div class="h-48 bg-stone-200 relative">
+            <div class="bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-700 overflow-hidden group hover:border-orange-400 transition-all">
+                <div class="h-48 bg-stone-200 dark:bg-stone-800 relative">
                     ${char.imageUrl 
                         ? `<img src="${char.imageUrl}" alt="${char.name}" class="w-full h-full object-cover">`
-                        : `<div class="absolute inset-0 flex items-center justify-center text-stone-400">
+                        : `<div class="absolute inset-0 flex items-center justify-center text-stone-400 dark:text-stone-500">
                                 [Character Ref Image]
                            </div>`
                     }
@@ -54,13 +54,13 @@ const characters = {
                     </div>
                 </div>
                 <div class="p-6">
-                    <h3 class="text-xl font-bold text-stone-800">${char.name}</h3>
+                    <h3 class="text-xl font-bold text-stone-800 dark:text-stone-100">${char.name}</h3>
                     <div class="flex gap-2 mt-2 mb-4">
                         ${(char.tags || []).map(tag => 
-                            `<span class="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded">${tag}</span>`
+                            `<span class="text-xs bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 px-2 py-1 rounded">${tag}</span>`
                         ).join('')}
                     </div>
-                    <div class="text-xs text-stone-500 font-mono bg-stone-50 p-2 rounded border border-stone-100 h-20 overflow-y-auto">
+                    <div class="text-xs text-stone-500 dark:text-stone-300 font-mono bg-stone-50 dark:bg-stone-900/80 p-2 rounded border border-stone-100 dark:border-stone-700 h-20 overflow-y-auto">
                         Base Prompt: ${char.basePrompt || 'N/A'}
                     </div>
                 </div>
@@ -249,8 +249,6 @@ const characters = {
 
         const fullPrompt = promptParts.join('. ');
 
-        const apiKey = localStorage.getItem('gemini_api_key') || '';
-
         try {
             const response = await app.apiRequest('/image/generate', {
                 method: 'POST',
@@ -258,8 +256,7 @@ const characters = {
                     prompt: fullPrompt,
                     style: 'cel-shading',
                     aspectRatio: '1:1',
-                    imageSize: '2K',
-                    apiKey: apiKey || undefined
+                    imageSize: '2K'
                 })
             });
 

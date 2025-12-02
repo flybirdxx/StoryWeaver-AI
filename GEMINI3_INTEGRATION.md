@@ -37,7 +37,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 ```javascript
 // 前端调用
-const response = await fetch('http://localhost:3000/api/image/generate', {
+const response = await fetch('http://localhost:52300/api/image/generate', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -52,7 +52,7 @@ const response = await fetch('http://localhost:3000/api/image/generate', {
 ### 2. 批量图像生成
 
 ```javascript
-const response = await fetch('http://localhost:3000/api/image/generate-batch', {
+const response = await fetch('http://localhost:52300/api/image/generate-batch', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
