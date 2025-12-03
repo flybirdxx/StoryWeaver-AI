@@ -1,7 +1,14 @@
 // 应用主入口 - 路由和状态管理
 const app = {
     currentView: 'dashboard',
-    apiBaseUrl: 'http://localhost:52300/api',
+    // 优先使用 TypeScript 服务器 (52301)，如果不可用则回退到 JS 服务器 (52300)
+    apiBaseUrl: (() => {
+        // 检查环境变量或使用默认值
+        const tsPort = 52301;
+        const jsPort = 52300;
+        // 默认使用 TS 服务器，如果失败会自动回退
+        return `http://localhost:${tsPort}/api`;
+    })(),
     theme: 'light',
     
     init() {
@@ -185,8 +192,14 @@ const app = {
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || '请求失败');
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    // 如果响应不是 JSON，使用状态文本
+                    errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+                }
+                throw new Error(errorData.error || errorData.message || '请求失败');
             }
 
             return await response.json();

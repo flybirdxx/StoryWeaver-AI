@@ -1,0 +1,4 @@
+# 业务服务层
+# 未来可以将 server/services 下的 JS 服务迁移到这里
+# 例如：analysisService.ts、geminiService.ts、imageService.ts 等
+

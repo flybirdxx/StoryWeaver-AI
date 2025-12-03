@@ -1,0 +1,4 @@
+# Zustand Stores
+# 未来可以在这里创建全局状态管理 Store
+# 例如：useProjectStore、usePanelStore 等
+

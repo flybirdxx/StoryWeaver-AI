@@ -1,13 +1,21 @@
 {
   "name": "storyweaver-ai",
   "version": "1.0.0",
+  "private": true,
   "description": "智能分镜与漫画生成平台",
   "main": "server/index.js",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev": "concurrently \"npm run server:ts\" \"npm run client:react\"",
+    "dev:legacy": "concurrently \"npm run server\" \"npm run client:legacy\"",
     "server": "node server/index.js",
-    "client": "npx http-server public -p 52310 -c-1",
-    "start": "node server/index.js"
+    "client:legacy": "npx http-server public -p 52310 -c-1",
+    "server:ts": "npm run dev --workspace @storyweaver/server",
+    "client:react": "npm run dev --workspace storyweaver-client",
+    "build": "npm run build --workspace storyweaver-client",
+    "build:server": "npm run build --workspace @storyweaver/server",
+    "build:all": "npm run build && npm run build:server",
+    "start": "cross-env NODE_ENV=production node apps/server/dist/index.js",
+    "start:ts": "cross-env NODE_ENV=production npm run start --workspace @storyweaver/server"
   },
   "keywords": [
     "storyboard",
@@ -16,6 +24,10 @@
   ],
   "author": "",
   "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "dependencies": {
     "@google/genai": "^0.2.0",
     "@google/generative-ai": "^0.2.1",
@@ -28,6 +40,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3"
   }
 }

@@ -1,0 +1,7 @@
+# 业务功能模块
+# 未来可以按照功能域组织代码
+# 例如：
+# - features/storyboard/ (分镜相关组件和逻辑)
+# - features/script/ (剧本相关组件和逻辑)
+# - features/characters/ (角色相关组件和逻辑)
+
