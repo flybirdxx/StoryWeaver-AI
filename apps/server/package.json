@@ -11,6 +11,7 @@
     "migrate": "tsx src/db/migrations.ts"
   },
   "dependencies": {
+    "@google/genai": "^0.2.0",
     "better-sqlite3": "^12.5.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

@@ -1,8 +1,15 @@
 import express, { Request, Response } from 'express';
-
-// 仍然直接调用现有 JS 逻辑
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+// 使用 @google/genai SDK（新版本，支持 Gemini 3）
+// 如果 SDK 不可用，回退到 REST API
+let GoogleGenAI: any;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const genaiModule = require('@google/genai');
+  GoogleGenAI = genaiModule.GoogleGenAI || genaiModule.default?.GoogleGenAI;
+} catch (e) {
+  console.warn('[Settings] @google/genai SDK 未安装，将使用 REST API');
+  GoogleGenAI = null;
+}
 
 const router = express.Router();
 
@@ -31,58 +38,87 @@ router.post('/test-key', async (req: Request, res: Response) => {
     try {
       const trimmedKey = String(apiKey).trim();
 
-      // Node.js 18+ 支持全局 fetch，无需 node-fetch
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${encodeURIComponent(trimmedKey)}`;
+      // 优先使用 @google/genai SDK（如果可用）
+      // 如果 SDK 不可用或网络问题，会回退到 REST API
+      if (GoogleGenAI) {
+        try {
+          const ai = new GoogleGenAI({ apiKey: trimmedKey });
+          const response = await ai.models.generateContent({
+            model: 'gemini-3-pro-preview',
+            contents: '请回复"测试成功"'
+          });
 
-      // 创建 AbortController 用于超时控制
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+          const text = response.text || '';
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: '请回复"测试成功"' }]
-            }
-          ]
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorData = await response.json() as { error?: { message?: string } };
-        throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json() as {
-        candidates?: Array<{
-          content?: {
-            parts?: Array<{ text?: string }>;
-          };
-        }>;
-        model?: string;
-      };
-
-      let text = '';
-      if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-        const parts = data.candidates[0].content.parts;
-        if (parts && parts[0] && parts[0].text) {
-          text = parts[0].text;
+          res.json({
+            success: true,
+            message: 'API Key 验证成功',
+            model: 'gemini-3-pro-preview',
+            testResponse: text.substring(0, 50),
+            method: 'sdk'
+          });
+          return;
+        } catch (sdkError: any) {
+          // 如果 SDK 失败（可能是网络问题），尝试 REST API
+          console.log('[Settings] SDK 测试失败，尝试 REST API:', sdkError.message);
         }
       }
+      
+      // 使用 REST API 作为备选方案
+      {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${encodeURIComponent(trimmedKey)}`;
 
-      res.json({
-        success: true,
-        message: 'API Key 验证成功',
-        model: 'gemini-3-pro-preview',
-        testResponse: text.substring(0, 50)
-      });
+        // 创建 AbortController 用于超时控制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: '请回复"测试成功"' }]
+              }
+            ]
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json() as { error?: { message?: string } };
+          throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json() as {
+          candidates?: Array<{
+            content?: {
+              parts?: Array<{ text?: string }>;
+            };
+          }>;
+          model?: string;
+        };
+
+        let text = '';
+        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+          const parts = data.candidates[0].content.parts;
+          if (parts && parts[0] && parts[0].text) {
+            text = parts[0].text;
+          }
+        }
+
+        res.json({
+          success: true,
+          message: 'API Key 验证成功',
+          model: 'gemini-3-pro-preview',
+          testResponse: text.substring(0, 50),
+          method: 'rest'
+        });
+      }
     } catch (error: any) {
       // eslint-disable-next-line no-console
       console.error('[Settings] API Key 测试失败:', error);
