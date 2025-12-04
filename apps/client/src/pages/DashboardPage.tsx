@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDashboard } from '../hooks/useDashboard';
+import { useProjectStore, selectProjectProgress } from '../stores/useProjectStore';
+import { PipelineMonitor } from '../components/dashboard/PipelineMonitor';
+import { QuickActions } from '../components/dashboard/QuickActions';
+import { TaskCenter } from '../components/dashboard/TaskCenter';
+import { ProjectCharacters } from '../components/dashboard/ProjectCharacters';
 import type { Project } from '@storyweaver/shared';
 
 // Chart.js 类型声明（如果未安装 @types/chart.js）
@@ -111,7 +116,8 @@ export const DashboardPage: React.FC = () => {
   const panels = currentProject?.analysis?.panels || [];
   const generatedPanels = currentProject?.generatedPanels || currentProject?.totalPanels || panels.length;
   const totalPanels = currentProject?.totalPanels || panels.length;
-  const progress = totalPanels > 0 ? Math.round((generatedPanels / totalPanels) * 100) : 0;
+  // 使用 computed selector 计算进度
+  const progress = useProjectStore(selectProjectProgress);
 
   return (
     <section className="space-y-6">
@@ -183,6 +189,7 @@ export const DashboardPage: React.FC = () => {
                       ))}
                     </div>
                   )}
+                  <ProjectCharacters project={currentProject} maxVisible={5} />
                 </div>
                 <div className="text-xs text-stone-400 dark:text-stone-500 text-right">
                   最近更新：{currentProject?.updatedAt ? new Date(currentProject.updatedAt).toLocaleString() : '--'}
@@ -269,26 +276,7 @@ export const DashboardPage: React.FC = () => {
           {/* Pipeline Visualizer & Chart */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LLM Pipeline Visualizer */}
-            <div className="lg:col-span-2 bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
-              <h3 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">提示词工程架构 (Live Monitor)</h3>
-              <p className="text-sm text-stone-500 dark:text-stone-400 mb-6">基于系统提示词的实时处理流。</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 relative group hover:border-blue-400 transition-colors">
-                  <div className="font-bold text-blue-900 dark:text-blue-200">Stage 1: Input Analysis</div>
-                  <div className="text-xs text-blue-700 dark:text-blue-300 mt-2">分析主题、角色、情绪</div>
-                  <div className="absolute -right-2 top-1/2 transform -translate-y-1/2 hidden md:block">→</div>
-                </div>
-                <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900 relative group hover:border-purple-400 transition-colors">
-                  <div className="font-bold text-purple-900 dark:text-purple-200">Stage 2: Director Agent</div>
-                  <div className="text-xs text-purple-700 dark:text-purple-300 mt-2">故事拆解、镜头布局</div>
-                  <div className="absolute -right-2 top-1/2 transform -translate-y-1/2 hidden md:block">→</div>
-                </div>
-                <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900 group hover:border-orange-400 transition-colors">
-                  <div className="font-bold text-orange-900 dark:text-orange-200">Stage 3: Visual Prompter</div>
-                  <div className="text-xs text-orange-700 dark:text-orange-300 mt-2">生成最终 Prompt & 安全清洗</div>
-                </div>
-              </div>
-            </div>
+            <PipelineMonitor project={currentProject} />
 
             {/* Shot Distribution Chart */}
             <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
@@ -298,6 +286,12 @@ export const DashboardPage: React.FC = () => {
                 <canvas ref={chartRef}></canvas>
               </div>
             </div>
+          </div>
+
+          {/* Quick Actions & Task Center */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <QuickActions />
+            <TaskCenter maxVisible={5} />
           </div>
         </div>
       </div>

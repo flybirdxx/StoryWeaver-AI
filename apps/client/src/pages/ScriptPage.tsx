@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useScriptStudio } from '../hooks/useScriptStudio';
 import { useCharacters } from '../hooks/useCharacters';
 import { useDashboard } from '../hooks/useDashboard';
+import { CharacterConfirmModal } from '../components/dashboard/CharacterConfirmModal';
+import type { Character } from '@storyweaver/shared';
 
 export const ScriptPage: React.FC = () => {
   const navigate = useNavigate();
@@ -25,6 +27,9 @@ export const ScriptPage: React.FC = () => {
     formatAnalysisMarkdown
   } = useScriptStudio();
 
+  const [showCharacterModal, setShowCharacterModal] = useState(false);
+  const [detectedCharacters, setDetectedCharacters] = useState<Character[]>([]);
+
   const handleSaveToShelf = async () => {
     await saveToShelfOriginal();
     // 重新加载 Dashboard 的项目列表
@@ -35,16 +40,42 @@ export const ScriptPage: React.FC = () => {
     try {
       await analyzeScript();
       // 等待一小段时间确保 analysisResult 已更新
-      setTimeout(async () => {
+      setTimeout(() => {
         // 从全局变量获取最新的分析结果（因为 analyzeScript 内部会更新）
         const latestResult = (window as any).storyboardData;
         if (latestResult?.characters && latestResult.characters.length > 0) {
-          await syncFromAnalysis(latestResult.characters);
+          // 转换角色格式并添加 id
+          const characters: Character[] = latestResult.characters.map((char: any, index: number) => ({
+            id: char.id || `char-${Date.now()}-${index}`,
+            name: char.name || '未命名角色',
+            description: char.description || '',
+            basePrompt: char.basePrompt || '',
+            tags: char.tags || [],
+            imageUrl: null,
+            imageIsUrl: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }));
+          setDetectedCharacters(characters);
+          setShowCharacterModal(true);
         }
       }, 500);
     } catch (error) {
       console.error('分析脚本失败:', error);
     }
+  };
+
+  const handleConfirmCharacters = async (selectedCharacters: Character[]) => {
+    setShowCharacterModal(false);
+    if (selectedCharacters.length > 0) {
+      await syncFromAnalysis(selectedCharacters);
+    }
+    setDetectedCharacters([]);
+  };
+
+  const handleCancelCharacters = () => {
+    setShowCharacterModal(false);
+    setDetectedCharacters([]);
   };
 
   const getStatusColor = () => {
@@ -206,6 +237,14 @@ export const ScriptPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Character Confirm Modal */}
+      <CharacterConfirmModal
+        characters={detectedCharacters}
+        isOpen={showCharacterModal}
+        onConfirm={handleConfirmCharacters}
+        onCancel={handleCancelCharacters}
+      />
     </section>
   );
 };

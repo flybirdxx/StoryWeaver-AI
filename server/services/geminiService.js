@@ -133,6 +133,7 @@ ${script}
       const aspectRatio = options.aspectRatio || '16:9';
       const imageSize = options.imageSize || '4K';
       
+      // 构建请求体，明确指定这是图像生成任务
       const requestBody = {
         contents: [{
           parts: [{ text: prompt }]
@@ -265,8 +266,24 @@ ${script}
         const parts = data.candidates[0].content.parts || [];
         const textPart = parts.find(part => part.text);
         if (textPart && textPart.text) {
-          console.error('API 返回了文本而不是图像:', textPart.text);
-          throw new Error(`API 返回文本响应而非图像: ${textPart.text.substring(0, 100)}`);
+          const textContent = textPart.text;
+          console.error('API 返回了文本而不是图像:', textContent.substring(0, 500));
+          
+          // 检查是否是安全过滤导致的
+          if (textContent.toLowerCase().includes('safety') || 
+              textContent.toLowerCase().includes('blocked') ||
+              textContent.toLowerCase().includes('policy')) {
+            throw new Error(`图像生成被安全策略阻止。请修改提示词以避免敏感内容。`);
+          }
+          
+          // 检查是否是模型误解了任务
+          if (textContent.toLowerCase().includes('prompt') || 
+              textContent.toLowerCase().includes('suggestion') ||
+              textContent.toLowerCase().includes('description')) {
+            throw new Error(`API 误解了任务，返回了文本描述而非图像。这可能是因为提示词格式问题。原始提示词: ${prompt.substring(0, 100)}...`);
+          }
+          
+          throw new Error(`API 返回文本响应而非图像: ${textContent.substring(0, 200)}`);
         }
       }
 
@@ -312,26 +329,31 @@ ${script}
    */
   buildImagePrompt(basePrompt, style, characterRefs) {
     const stylePrompts = {
-      'cel-shading': '日系赛璐珞风格，清晰的线条，鲜艳的色彩，',
-      'noir': '美漫黑白线稿风格，高对比度，强烈的光影，',
-      'ghibli': '吉卜力水彩风格，柔和的光影，温暖的色调，',
-      'realism': '电影实拍感，写实风格，自然光影，'
+      'cel-shading': 'Japanese cel-shaded animation style, clean distinct outlines, vivid deep colors,',
+      'noir': 'American comic book noir style, high contrast black and white, strong shadows,',
+      'ghibli': 'Studio Ghibli watercolor style, soft lighting, warm tones,',
+      'realism': 'Cinematic photography style, realistic rendering, natural lighting,'
     };
 
     const styleText = stylePrompts[style] || stylePrompts['cel-shading'];
     
     // 电影模式：强调电影感、镜头语言、景深、动态构图
-    const modeEnhancement = '电影级画面质量，专业镜头构图，电影感光影，动态景深，';
+    const modeEnhancement = 'cinematic composition, professional camera work, film-grade lighting, dynamic depth of field,';
     
-    let enhancedPrompt = `${styleText}${modeEnhancement}${basePrompt}`;
+    // 明确指示这是图像生成任务，避免模型返回文本描述
+    // 使用英文提示词，因为 Gemini 图像生成模型对英文提示词理解更好
+    let enhancedPrompt = `Generate an image: ${styleText} ${modeEnhancement} ${basePrompt}`;
 
     // 添加角色一致性提示
     if (Object.keys(characterRefs).length > 0) {
-      enhancedPrompt += '。角色特征保持一致：';
+      enhancedPrompt += '. Maintain character consistency:';
       Object.entries(characterRefs).forEach(([name, ref]) => {
         enhancedPrompt += ` ${name}(${ref})`;
       });
     }
+
+    // 在末尾再次强调这是图像生成任务
+    enhancedPrompt += '. Generate the image directly, do not return text descriptions or prompts.';
 
     return enhancedPrompt;
   }

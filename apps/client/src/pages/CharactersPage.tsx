@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCharacters } from '../hooks/useCharacters';
 import type { Character } from '@storyweaver/shared';
@@ -22,6 +22,11 @@ export const CharactersPage: React.FC = () => {
     basePrompt: ''
   });
   const [isGeneratingImage, setIsGeneratingImage] = useState<string | null>(null);
+  
+  // 调试：检查状态变化
+  useEffect(() => {
+    console.log('[CharactersPage] isGeneratingImage 状态变化:', isGeneratingImage);
+  }, [isGeneratingImage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,10 +51,16 @@ export const CharactersPage: React.FC = () => {
   };
 
   const handleGenerateImage = async (id: string) => {
+    console.log('[CharactersPage] 开始生成图像，角色 ID:', id);
     setIsGeneratingImage(id);
     try {
       await generateImage(id);
+      console.log('[CharactersPage] 图像生成成功');
+    } catch (error) {
+      console.error('[CharactersPage] 图像生成失败:', error);
+      throw error; // 重新抛出错误，让调用者处理
     } finally {
+      console.log('[CharactersPage] 清除生成状态');
       setIsGeneratingImage(null);
     }
   };
@@ -59,7 +70,7 @@ export const CharactersPage: React.FC = () => {
   };
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 relative">
       <header className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold text-stone-800 dark:text-stone-100">角色库 (Consistency Core)</h2>
@@ -96,22 +107,20 @@ export const CharactersPage: React.FC = () => {
               character={char}
               onDelete={deleteCharacter}
               onGenerateImage={handleGenerateImage}
-              isGeneratingImage={isGeneratingImage === char.id}
+              isGeneratingImage={isGeneratingImage !== null && String(isGeneratingImage) === String(char.id)}
             />
           ))}
         </div>
       )}
 
-      {/* Next step button */}
+      {/* Next step button - Fixed at bottom right */}
       {characters.length > 0 && (
-        <div className="flex justify-end">
-          <button
-            onClick={handleGoToStoryboard}
-            className="mt-2 px-5 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 shadow-sm transition-colors"
-          >
-            下一步：生成分镜故事板
-          </button>
-        </div>
+        <button
+          onClick={handleGoToStoryboard}
+          className="fixed bottom-6 right-6 px-5 py-3 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 shadow-lg transition-colors z-40"
+        >
+          下一步：生成分镜故事板
+        </button>
       )}
 
       {/* Create Character Modal */}
@@ -206,21 +215,33 @@ const CharacterCard: React.FC<CharacterCardProps> = ({
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      <div className="h-48 bg-stone-200 dark:bg-stone-800 relative">
-        {character.imageUrl ? (
+      <div className="h-64 bg-stone-200 dark:bg-stone-800 relative overflow-hidden">
+        {isGeneratingImage ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-stone-100 dark:bg-stone-900 z-10">
+            <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-sm font-medium text-stone-700 dark:text-stone-300">正在生成角色三视图...</p>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">生成完整角色参考图（正面/侧面/背面）</p>
+            <div className="mt-4 w-48 h-1 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
+              <div className="h-full bg-orange-500 animate-pulse" style={{ width: '60%' }}></div>
+            </div>
+          </div>
+        ) : character.imageUrl ? (
           <img
             src={character.imageUrl}
             alt={character.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain bg-white dark:bg-stone-900"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-stone-400 dark:text-stone-500">
-            [Character Ref Image]
+            <div className="text-center">
+              <div className="text-2xl mb-2">📷</div>
+              <div className="text-sm">[Character Ref Image]</div>
+            </div>
           </div>
         )}
         <div
           className={`absolute top-2 right-2 flex gap-2 transition-opacity ${
-            showActions ? 'opacity-100' : 'opacity-0'
+            showActions && !isGeneratingImage ? 'opacity-100' : 'opacity-0'
           }`}
         >
           <button
@@ -232,7 +253,8 @@ const CharacterCard: React.FC<CharacterCardProps> = ({
           </button>
           <button
             onClick={() => onDelete(character.id)}
-            className="p-1 bg-red-500 text-white rounded text-xs"
+            disabled={isGeneratingImage}
+            className="p-1 bg-red-500 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
             删除
           </button>

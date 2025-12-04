@@ -7,10 +7,13 @@ interface UseStoryboardReturn {
   selectedPanelId: string | number | null;
   isLoading: boolean;
   isGenerating: boolean;
+  generatingPanelId: string | number | null; // 正在生成的分镜 ID
   loadPanels: () => void;
   selectPanel: (id: string | number) => void;
   updatePanelImage: (id: string | number, imageUrl: string, isUrl?: boolean) => void;
   generateImages: (style: string, options?: { aspectRatio?: string; imageSize?: string }) => Promise<void>;
+  generateBatchImages: (selectedPanels: Panel[], style: string, options?: { aspectRatio?: string; imageSize?: string }) => Promise<void>;
+  regenerateSinglePanel: (panelId: string | number, style: string, options?: { aspectRatio?: string; imageSize?: string }) => Promise<void>;
 }
 
 export function useStoryboard(): UseStoryboardReturn {
@@ -24,6 +27,7 @@ export function useStoryboard(): UseStoryboardReturn {
   // UI 状态保持局部（不需要全局）
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingPanelId, setGeneratingPanelId] = useState<string | number | null>(null);
 
   const loadPanels = useCallback(() => {
     const storyboardData = (window as any).storyboardData;
@@ -197,15 +201,170 @@ export function useStoryboard(): UseStoryboardReturn {
     [panels, handleUpdatePanelImage]
   );
 
+  // 批量生成选中的分镜
+  const generateBatchImages = useCallback(
+    async (selectedPanels: Panel[], style: string, options: { aspectRatio?: string; imageSize?: string } = {}) => {
+      if (selectedPanels.length === 0) {
+        alert('请先选择要生成的分镜');
+        return;
+      }
+
+      const characters = (window as any).charactersData || [];
+      const characterRefs: Record<string, string> = {};
+      characters.forEach((char: any) => {
+        if (char.basePrompt) {
+          characterRefs[char.name] = char.basePrompt;
+        }
+      });
+
+      const confirmMsg = `将为 ${selectedPanels.length} 个选中的分镜生成图像，是否继续？`;
+      if (!confirm(confirmMsg)) {
+        return;
+      }
+
+      setIsGenerating(true);
+
+      const imageOptions = {
+        aspectRatio: options.aspectRatio || '16:9',
+        imageSize: options.imageSize || '4K'
+      };
+
+      const apiKey = localStorage.getItem('gemini_api_key') || '';
+
+      try {
+        // 使用批量队列接口
+        const url = '/api/image/generate-batch-queue';
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(apiKey ? { 'X-API-Key': apiKey } : {})
+          },
+          body: JSON.stringify({
+            panels: selectedPanels,
+            style,
+            characterRefs,
+            options: imageOptions
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        if (result.success) {
+          alert(`已提交 ${result.data?.total || selectedPanels.length} 个任务到后台队列，可在 Dashboard 的任务中心查看进度。`);
+        } else {
+          throw new Error(result.error || '批量生成失败');
+        }
+      } catch (error: any) {
+        console.error('批量生成错误:', error);
+        alert(`批量生成失败: ${error.message || '未知错误'}`);
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    []
+  );
+
+  // 重新生成单个分镜
+  const regenerateSinglePanel = useCallback(
+    async (panelId: string | number, style: string, options: { aspectRatio?: string; imageSize?: string } = {}) => {
+      const panel = panels.find(p => p.id === panelId);
+      if (!panel) {
+        alert('找不到指定的分镜');
+        return;
+      }
+
+      if (!panel.prompt) {
+        alert('该分镜没有提示词，无法生成图像');
+        return;
+      }
+
+      setGeneratingPanelId(panelId);
+      setIsGenerating(true);
+
+      // 更新状态为生成中
+      const updatePanelStatus = useProjectStore.getState().updatePanelStatus;
+      updatePanelStatus(panelId, 'generating');
+
+      const characters = (window as any).charactersData || [];
+      const characterRefs: Record<string, string> = {};
+      characters.forEach((char: any) => {
+        if (char.basePrompt) {
+          characterRefs[char.name] = char.basePrompt;
+        }
+      });
+
+      const imageOptions = {
+        aspectRatio: options.aspectRatio || '16:9',
+        imageSize: options.imageSize || '4K'
+      };
+
+      const apiKey = localStorage.getItem('gemini_api_key') || '';
+
+      try {
+        const url = '/api/image/generate';
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(apiKey ? { 'X-API-Key': apiKey } : {})
+          },
+          body: JSON.stringify({
+            prompt: panel.prompt,
+            style: style || 'cel-shading',
+            characterRefs: characterRefs,
+            aspectRatio: imageOptions.aspectRatio,
+            imageSize: imageOptions.imageSize
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        if (result.success && result.data && result.data.imageUrl) {
+          // 更新分镜图像
+          handleUpdatePanelImage(
+            panelId,
+            result.data.imageUrl,
+            result.data.isUrl || false
+          );
+          // 更新状态为已完成
+          updatePanelStatus(panelId, 'completed', result.data.imageUrl);
+          console.log(`✓ 分镜 ${panelId} 重新生成成功`);
+        } else {
+          throw new Error(result.error || '生成失败：未返回图像数据');
+        }
+      } catch (error: any) {
+        console.error(`分镜 ${panelId} 重新生成失败:`, error);
+        // 更新状态为失败
+        updatePanelStatus(panelId, 'failed');
+        alert(`重新生成失败: ${error.message || '未知错误'}\n\n请检查:\n1. API Key 是否正确配置\n2. 网络连接是否正常\n3. 提示词是否有效`);
+      } finally {
+        setGeneratingPanelId(null);
+        setIsGenerating(false);
+      }
+    },
+    [panels, handleUpdatePanelImage]
+  );
+
   return {
     panels,
     selectedPanelId,
     isLoading,
     isGenerating,
+    generatingPanelId,
     loadPanels,
     selectPanel,
     updatePanelImage: handleUpdatePanelImage,
-    generateImages
+    generateImages,
+    generateBatchImages,
+    regenerateSinglePanel
   };
 }
 

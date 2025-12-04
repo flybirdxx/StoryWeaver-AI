@@ -161,15 +161,20 @@ export function useCharacters(): UseCharactersReturn {
       return;
     }
 
-    const fullPrompt = promptParts.join('. ');
+    // 构建三视图提示词：要求生成完整的角色三视图（正面、侧面、背面）
+    // 使用 3:4 或 2:3 比例，确保角色完整显示
+    const threeViewPrompt = `Generate a character reference sheet showing full body character design. ${promptParts.join('. ')}. 
+Character sheet layout: front view on left, side view in center, back view on right. 
+Full body visible from head to toe, no cropping. Character design sheet style, clean white background, professional character reference format. 
+All three views should show the complete character clearly and consistently.`;
 
     try {
       const response = await apiRequest<{ imageUrl: string; isUrl?: boolean }>('/image/generate', {
         method: 'POST',
         body: JSON.stringify({
-          prompt: fullPrompt,
+          prompt: threeViewPrompt,
           style: 'cel-shading',
-          aspectRatio: '1:1',
+          aspectRatio: '3:4', // 使用 3:4 比例，更适合显示完整角色
           imageSize: '2K'
         })
       });
@@ -180,6 +185,18 @@ export function useCharacters(): UseCharactersReturn {
       }
 
       const { imageUrl, isUrl } = response.data;
+
+      // 如果返回的是 base64 数据 URL，检查大小
+      // 如果过大（> 5MB），建议使用 URL 而不是 base64
+      if (!isUrl && imageUrl && imageUrl.startsWith('data:')) {
+        const base64Data = imageUrl.split(',')[1] || '';
+        const sizeInBytes = (base64Data.length * 3) / 4; // base64 编码大小估算
+        const sizeInMB = sizeInBytes / (1024 * 1024);
+        
+        if (sizeInMB > 5) {
+          console.warn(`角色图像较大 (${sizeInMB.toFixed(2)}MB)，建议保存为文件而不是 base64`);
+        }
+      }
 
       // 更新角色图像
       await updateCharacter(id, {

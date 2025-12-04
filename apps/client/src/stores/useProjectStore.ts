@@ -31,7 +31,66 @@ export interface ProjectState {
   addPanel: (panel: Panel) => void;
   removePanel: (id: string | number) => void;
   reorderPanels: (startIndex: number, endIndex: number) => void;
+  
+  // Computed selectors (通过函数访问，避免在 store 中存储)
 }
+
+// Computed selectors - 用于从 store 中计算派生状态
+// 这些是纯函数，可以在组件中直接使用，也可以作为 Zustand selector 使用
+
+/**
+ * 计算项目进度百分比
+ */
+export const selectProjectProgress = (state: ProjectState): number => {
+  const { currentProject, panels } = state;
+  if (!currentProject) return 0;
+  const totalPanels = currentProject.totalPanels || panels.length || 0;
+  const generatedPanels = currentProject.generatedPanels || 0;
+  return totalPanels > 0 ? Math.round((generatedPanels / totalPanels) * 100) : 0;
+};
+
+/**
+ * 获取 Pipeline 阶段状态
+ */
+export const selectPipelineStages = (state: ProjectState) => {
+  const { currentProject } = state;
+  const hasScript = Boolean(currentProject?.script && currentProject.script.trim().length > 0);
+  const hasAnalysis = Boolean(
+    currentProject?.analysis && 
+    currentProject.analysis.panels && 
+    Array.isArray(currentProject.analysis.panels) && 
+    currentProject.analysis.panels.length > 0
+  );
+  const hasGeneratedPanels = Boolean(
+    currentProject?.generatedPanels && 
+    currentProject.generatedPanels > 0
+  );
+  
+  return {
+    stage1: hasScript,
+    stage2: hasAnalysis,
+    stage3: hasGeneratedPanels
+  };
+};
+
+/**
+ * 分镜完成度统计
+ */
+export const selectPanelCompletionStats = (state: ProjectState) => {
+  const { panels } = state;
+  const total = panels.length;
+  const completed = panels.filter(p => p.status === 'completed').length;
+  const generating = panels.filter(p => p.status === 'generating').length;
+  const pending = panels.filter(p => !p.status || p.status === 'pending').length;
+  
+  return {
+    total,
+    completed,
+    generating,
+    pending,
+    completionRate: total > 0 ? Math.round((completed / total) * 100) : 0
+  };
+};
 
 export const useProjectStore = create<ProjectState>()(
   immer((set) => ({

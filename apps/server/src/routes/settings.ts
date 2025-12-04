@@ -175,6 +175,83 @@ router.post('/test-key', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/settings/check-environment
+ * 检查环境配置（文件夹权限、API Key 等）
+ */
+router.get('/check-environment', async (_req: Request, res: Response) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    // 检查 uploads 文件夹
+    const projectRoot = path.join(__dirname, '..', '..', '..', '..');
+    const uploadsPath = path.join(projectRoot, 'uploads');
+    
+    const checks = {
+      uploadsFolder: {
+        path: uploadsPath,
+        exists: false,
+        writable: false,
+        message: ''
+      },
+      apiKey: {
+        configured: false,
+        message: ''
+      }
+    };
+
+    // 检查 uploads 文件夹
+    try {
+      if (fs.existsSync(uploadsPath)) {
+        checks.uploadsFolder.exists = true;
+        // 尝试写入测试文件
+        const testFile = path.join(uploadsPath, '.test-write');
+        try {
+          fs.writeFileSync(testFile, 'test');
+          fs.unlinkSync(testFile);
+          checks.uploadsFolder.writable = true;
+          checks.uploadsFolder.message = '文件夹存在且可写';
+        } catch (writeError: any) {
+          checks.uploadsFolder.writable = false;
+          checks.uploadsFolder.message = `文件夹存在但不可写: ${writeError.message}`;
+        }
+      } else {
+        // 尝试创建文件夹
+        try {
+          fs.mkdirSync(uploadsPath, { recursive: true });
+          checks.uploadsFolder.exists = true;
+          checks.uploadsFolder.writable = true;
+          checks.uploadsFolder.message = '文件夹已创建且可写';
+        } catch (mkdirError: any) {
+          checks.uploadsFolder.exists = false;
+          checks.uploadsFolder.message = `无法创建文件夹: ${mkdirError.message}`;
+        }
+      }
+    } catch (error: any) {
+      checks.uploadsFolder.message = `检查失败: ${error.message}`;
+    }
+
+    // 检查 API Key（从请求头或 localStorage 无法在服务器端检查，这里只检查是否有配置）
+    // 实际验证需要通过 /test-key 接口
+    checks.apiKey.configured = false;
+    checks.apiKey.message = '请使用 /api/settings/test-key 接口验证 API Key';
+
+    res.json({
+      success: true,
+      data: checks
+    });
+  } catch (error: any) {
+    // eslint-disable-next-line no-console
+    console.error('环境检查失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '环境检查失败',
+      message: error?.message || 'Unknown error'
+    });
+  }
+});
+
+/**
  * POST /api/settings/save-key
  * 保存 API Key 到服务器（可选，如果需要在服务器端保存）
  */

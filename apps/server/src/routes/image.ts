@@ -534,6 +534,61 @@ router.get('/job/:jobId', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/image/jobs/active
+ * 获取活跃任务列表（pending 和 processing 状态）
+ */
+router.get('/jobs/active', async (req: Request, res: Response) => {
+  try {
+    const { getJobsByStatus } = await import('../db/jobRepo');
+    
+    // 获取 pending 和 processing 状态的任务
+    const pendingJobs = await getJobsByStatus('pending', 50);
+    const processingJobs = await getJobsByStatus('processing', 50);
+    
+    // 合并并排序（按创建时间倒序）
+    const allJobs = [...pendingJobs, ...processingJobs].sort((a, b) => {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    // 解析 payload 和 result
+    const jobs = allJobs.map((job) => {
+      const payload = job.payload ? JSON.parse(job.payload) : null;
+      const result = job.result ? JSON.parse(job.result) : null;
+      
+      return {
+        id: job.id,
+        type: job.type,
+        status: job.status,
+        payload: {
+          prompt: payload?.prompt,
+          panelId: payload?.panelId
+        },
+        error: job.error,
+        retryCount: job.retryCount,
+        maxRetries: job.maxRetries,
+        createdAt: job.createdAt,
+        updatedAt: job.updatedAt,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt
+      };
+    });
+
+    res.json({
+      success: true,
+      data: jobs
+    });
+  } catch (error: any) {
+    // eslint-disable-next-line no-console
+    console.error('获取活跃任务列表失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '查询失败',
+      message: error?.message || 'Unknown error'
+    });
+  }
+});
+
+/**
  * POST /api/image/generate-batch-queue
  * 批量将图像生成任务加入队列
  */

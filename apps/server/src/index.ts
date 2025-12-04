@@ -56,9 +56,10 @@ app.use(
   })
 );
 // 增加 body parser 限制以支持图像上传（base64 编码的图像可能很大）
-// 默认限制是 100KB，增加到 20MB 以支持图像数据
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+// 默认限制是 100KB，增加到 50MB 以支持大尺寸图像数据（三视图等）
+// 注意：如果图像数据过大，建议使用 URL 而不是 base64
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // API 路由：所有路由已 TS 化（必须在静态文件之前）
 app.use('/api/script', scriptRoutes);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -18,19 +18,24 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useStoryboard } from '../hooks/useStoryboard';
 import { useProjectStore } from '../stores/useProjectStore';
-import type { Panel } from '@storyweaver/shared';
+import type { Panel, PanelStatus } from '@storyweaver/shared';
 
 export const StoryboardPage: React.FC = () => {
   const {
     panels,
     selectedPanelId,
     isGenerating,
+    generatingPanelId,
     selectPanel,
-    generateImages
+    generateImages,
+    generateBatchImages,
+    regenerateSinglePanel
   } = useStoryboard();
   const reorderPanels = useProjectStore((state) => state.reorderPanels);
 
   const [artStyle, setArtStyle] = useState('realism');
+  const [selectedPanelIds, setSelectedPanelIds] = useState<Set<string | number>>(new Set());
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
 
   // 配置拖拽传感器
   const sensors = useSensors(
@@ -56,11 +61,64 @@ export const StoryboardPage: React.FC = () => {
 
   const selectedPanel = panels.find((p) => p.id === selectedPanelId) || panels[0];
 
+  // 处理面板点击（支持 Shift+点击多选）
+  const handlePanelClick = useCallback((panelId: string | number, event: React.MouseEvent) => {
+    if (event.shiftKey && selectedPanelIds.size > 0) {
+      // Shift+点击：多选模式
+      setIsMultiSelectMode(true);
+      const newSelected = new Set(selectedPanelIds);
+      if (newSelected.has(panelId)) {
+        newSelected.delete(panelId);
+      } else {
+        newSelected.add(panelId);
+      }
+      setSelectedPanelIds(newSelected);
+      // 同时选中最后一个点击的面板
+      selectPanel(panelId);
+    } else if (event.ctrlKey || event.metaKey) {
+      // Ctrl/Cmd+点击：切换选择
+      setIsMultiSelectMode(true);
+      const newSelected = new Set(selectedPanelIds);
+      if (newSelected.has(panelId)) {
+        newSelected.delete(panelId);
+      } else {
+        newSelected.add(panelId);
+      }
+      setSelectedPanelIds(newSelected);
+      selectPanel(panelId);
+    } else {
+      // 普通点击：单选
+      setIsMultiSelectMode(false);
+      setSelectedPanelIds(new Set([panelId]));
+      selectPanel(panelId);
+    }
+  }, [selectedPanelIds, selectPanel]);
+
+  // 清除多选
+  const clearSelection = useCallback(() => {
+    setSelectedPanelIds(new Set());
+    setIsMultiSelectMode(false);
+  }, []);
+
   const handleGenerateImages = async () => {
     await generateImages(artStyle, {
       aspectRatio: '16:9',
       imageSize: '4K'
     });
+  };
+
+  // 批量生成选中的分镜
+  const handleBatchGenerate = async () => {
+    if (selectedPanelIds.size === 0) {
+      alert('请先选择要生成的分镜（Shift+点击或 Ctrl+点击）');
+      return;
+    }
+    const selectedPanels = panels.filter(p => selectedPanelIds.has(p.id));
+    await generateBatchImages(selectedPanels, artStyle, {
+      aspectRatio: '16:9',
+      imageSize: '4K'
+    });
+    clearSelection();
   };
 
   return (
@@ -94,13 +152,31 @@ export const StoryboardPage: React.FC = () => {
           <button className="p-1 hover:bg-stone-100 dark:hover:bg-stone-800 rounded">💥 SFX</button>
         </div>
         <div className="flex-1"></div>
-        <button
-          onClick={handleGenerateImages}
-          disabled={isGenerating || panels.length === 0}
-          className="bg-stone-800 dark:bg-stone-700 text-white px-4 py-2 rounded-lg text-sm hover:bg-black dark:hover:bg-stone-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isGenerating ? '生成中...' : '🎥 生成分镜图像 (Gemini 3 Pro)'}
-        </button>
+        {isMultiSelectMode && selectedPanelIds.size > 0 && (
+          <button
+            onClick={clearSelection}
+            className="text-xs text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 px-3 py-1 border border-stone-300 dark:border-stone-700 rounded"
+          >
+            清除选择 ({selectedPanelIds.size})
+          </button>
+        )}
+        {isMultiSelectMode && selectedPanelIds.size > 0 ? (
+          <button
+            onClick={handleBatchGenerate}
+            disabled={isGenerating}
+            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isGenerating ? '生成中...' : `🎥 批量生成选中 (${selectedPanelIds.size} 个)`}
+          </button>
+        ) : (
+          <button
+            onClick={handleGenerateImages}
+            disabled={isGenerating || panels.length === 0}
+            className="bg-stone-800 dark:bg-stone-700 text-white px-4 py-2 rounded-lg text-sm hover:bg-black dark:hover:bg-stone-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isGenerating ? '生成中...' : '🎥 生成分镜图像 (Gemini 3 Pro)'}
+          </button>
+        )}
       </div>
 
       {/* Canvas Layout: Left shot list + Right preview / details */}
@@ -132,7 +208,13 @@ export const StoryboardPage: React.FC = () => {
                       key={panel.id}
                       panel={panel}
                       isActive={panel.id === selectedPanelId}
-                      onClick={() => selectPanel(panel.id)}
+                      isSelected={selectedPanelIds.has(panel.id)}
+                      isGenerating={generatingPanelId === panel.id}
+                      onRegenerate={(panelId) => regenerateSinglePanel(panelId, artStyle, {
+                        aspectRatio: '16:9',
+                        imageSize: '4K'
+                      })}
+                      onClick={(e) => handlePanelClick(panel.id, e)}
                     />
                   ))
                 )}
@@ -151,7 +233,15 @@ export const StoryboardPage: React.FC = () => {
                 <p className="text-sm">请先在「剧本中心」分析剧本，并在左侧选择一个分镜。</p>
               </div>
             ) : (
-              <PanelDetail panel={selectedPanel} />
+              <PanelDetail 
+                panel={selectedPanel} 
+                onRegenerate={(panelId) => regenerateSinglePanel(panelId, artStyle, {
+                  aspectRatio: '16:9',
+                  imageSize: '4K'
+                })}
+                artStyle={artStyle}
+                isGenerating={generatingPanelId === selectedPanel.id}
+              />
             )}
           </div>
           {/* Project rhythm info */}
@@ -174,11 +264,14 @@ export const StoryboardPage: React.FC = () => {
 interface PanelCardProps {
   panel: Panel;
   isActive: boolean;
-  onClick: () => void;
+  isSelected?: boolean;
+  isGenerating?: boolean;
+  onRegenerate?: (panelId: string | number) => void;
+  onClick: (e: React.MouseEvent) => void;
 }
 
 // 可拖拽的分镜卡片组件
-const SortablePanelCard: React.FC<PanelCardProps> = ({ panel, isActive, onClick }) => {
+const SortablePanelCard: React.FC<PanelCardProps> = ({ panel, isActive, isGenerating, onRegenerate, onClick }) => {
   const {
     attributes,
     listeners,
@@ -199,6 +292,8 @@ const SortablePanelCard: React.FC<PanelCardProps> = ({ panel, isActive, onClick 
       <PanelCard
         panel={panel}
         isActive={isActive}
+        isGenerating={isGenerating}
+        onRegenerate={onRegenerate}
         onClick={onClick}
         dragHandleProps={listeners}
       />
@@ -209,17 +304,55 @@ const SortablePanelCard: React.FC<PanelCardProps> = ({ panel, isActive, onClick 
 const PanelCard: React.FC<PanelCardProps & { dragHandleProps?: any }> = ({ 
   panel, 
   isActive, 
+  isSelected = false,
+  isGenerating = false,
+  onRegenerate,
   onClick,
   dragHandleProps 
 }) => {
   const label = `#${String(panel.id).padStart(2, '0')}`;
   const duration = panel.duration || 3.0;
   const title = panel.dialogue || (panel.prompt || '').slice(0, 60) || '未命名镜头';
+  
+  // 确定面板状态（向后兼容旧状态）
+  const getPanelStatus = (): PanelStatus => {
+    if (isGenerating || panel.status === 'generating') return 'generating';
+    if (panel.status === 'completed' || panel.imageUrl) return 'completed';
+    if (panel.status === 'failed') return 'failed';
+    if (panel.prompt && panel.prompt.trim().length > 0) return 'prompted';
+    return 'draft';
+  };
+  
+  const status = getPanelStatus();
+  const statusLabels: Record<PanelStatus, string> = {
+    draft: '草稿',
+    prompted: '已准备',
+    generating: '生成中',
+    completed: '已完成',
+    failed: '失败'
+  };
+  
+  const statusColors: Record<PanelStatus, string> = {
+    draft: 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400',
+    prompted: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+    generating: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 animate-pulse',
+    completed: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+    failed: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+  };
+
+  const handleRegenerate = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 阻止触发面板选择
+    if (onRegenerate) {
+      onRegenerate(panel.id);
+    }
+  };
 
   return (
     <div
       className={`group relative flex gap-3 px-3 py-3 cursor-pointer transition-colors select-none ${
-        isActive
+        isSelected
+          ? 'bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-500'
+          : isActive
           ? 'bg-orange-50 dark:bg-orange-950/30 border-l-4 border-orange-500'
           : 'hover:bg-stone-50 dark:hover:bg-stone-800/60 border-l-4 border-transparent'
       }`}
@@ -249,12 +382,25 @@ const PanelCard: React.FC<PanelCardProps & { dragHandleProps?: any }> = ({
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-1 gap-1">
           <span className="text-[10px] font-mono text-stone-400 dark:text-stone-500">{label}</span>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${statusColors[status]}`}>
+            {statusLabels[status]}
+          </span>
           <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded">
             {panel.type || 'Mid Shot'}
           </span>
           <span className="text-[10px] text-stone-400 dark:text-stone-500">{duration}s</span>
+          {status === 'failed' && onRegenerate && (
+            <button
+              onClick={handleRegenerate}
+              disabled={isGenerating}
+              className="text-[10px] px-1.5 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded transition-colors disabled:opacity-50"
+              title="重新生成"
+            >
+              🔄
+            </button>
+          )}
         </div>
         <p className="text-xs text-stone-800 dark:text-stone-100 font-medium truncate">{title}</p>
       </div>
@@ -268,19 +414,45 @@ const PanelCard: React.FC<PanelCardProps & { dragHandleProps?: any }> = ({
 
 interface PanelDetailProps {
   panel: Panel;
+  onRegenerate?: (panelId: string | number) => void;
+  artStyle?: string;
+  isGenerating?: boolean;
 }
 
-const PanelDetail: React.FC<PanelDetailProps> = ({ panel }) => {
+const PanelDetail: React.FC<PanelDetailProps> = ({ panel, onRegenerate, artStyle = 'cel-shading', isGenerating = false }) => {
   const label = `#${String(panel.id).padStart(2, '0')}`;
   const duration = panel.duration || 3.0;
+  
+  // 确定面板状态
+  const getPanelStatus = (): PanelStatus => {
+    if (isGenerating || panel.status === 'generating') return 'generating';
+    if (panel.status === 'completed' || panel.imageUrl) return 'completed';
+    if (panel.status === 'failed') return 'failed';
+    if (panel.prompt && panel.prompt.trim().length > 0) return 'prompted';
+    return 'draft';
+  };
+  
+  const status = getPanelStatus();
 
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 py-2 bg-stone-950 dark:bg-stone-800 text-xs text-stone-400 dark:text-stone-500 font-mono flex items-center justify-between">
         <span>Shot {label}</span>
-        <span>
-          {panel.type || 'Mid Shot'} · {duration}s
-        </span>
+        <div className="flex items-center gap-2">
+          <span>
+            {panel.type || 'Mid Shot'} · {duration}s
+          </span>
+          {status === 'failed' && onRegenerate && (
+            <button
+              onClick={() => onRegenerate(panel.id)}
+              disabled={isGenerating}
+              className="px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="重新生成图像"
+            >
+              {isGenerating ? '生成中...' : '🔄 重新生成'}
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 bg-stone-900 dark:bg-stone-950 flex items-center justify-center overflow-hidden">
         {panel.imageUrl ? (
