@@ -3,7 +3,7 @@ import express, { Request, Response } from 'express';
 // 如果 SDK 不可用，回退到 REST API
 let GoogleGenAI: any;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-var-requires
   const genaiModule = require('@google/genai');
   GoogleGenAI = genaiModule.GoogleGenAI || genaiModule.default?.GoogleGenAI;
 } catch (e) {
@@ -73,51 +73,51 @@ router.post('/test-key', async (req: Request, res: Response) => {
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
 
         const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [{ text: '请回复"测试成功"' }]
-              }
-            ]
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: '请回复"测试成功"' }]
+            }
+          ]
           }),
           signal: controller.signal
-        });
+      });
 
         clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          const errorData = await response.json() as { error?: { message?: string } };
-          throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+      if (!response.ok) {
+        const errorData = await response.json() as { error?: { message?: string } };
+        throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json() as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{ text?: string }>;
+          };
+        }>;
+        model?: string;
+      };
+
+      let text = '';
+      if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+        const parts = data.candidates[0].content.parts;
+        if (parts && parts[0] && parts[0].text) {
+          text = parts[0].text;
         }
+      }
 
-        const data = await response.json() as {
-          candidates?: Array<{
-            content?: {
-              parts?: Array<{ text?: string }>;
-            };
-          }>;
-          model?: string;
-        };
-
-        let text = '';
-        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-          const parts = data.candidates[0].content.parts;
-          if (parts && parts[0] && parts[0].text) {
-            text = parts[0].text;
-          }
-        }
-
-        res.json({
-          success: true,
-          message: 'API Key 验证成功',
-          model: 'gemini-3-pro-preview',
+      res.json({
+        success: true,
+        message: 'API Key 验证成功',
+        model: 'gemini-3-pro-preview',
           testResponse: text.substring(0, 50),
           method: 'rest'
-        });
+      });
       }
     } catch (error: any) {
       // eslint-disable-next-line no-console

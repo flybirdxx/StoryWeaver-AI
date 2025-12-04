@@ -51,10 +51,10 @@ const settings = {
             let response;
             try {
                 response = await app.apiRequest('/settings/test-key', {
-                    method: 'POST',
-                    body: JSON.stringify({ apiKey: apiKey }),
-                    disableAuth: true
-                });
+                method: 'POST',
+                body: JSON.stringify({ apiKey: apiKey }),
+                disableAuth: true
+            });
             } catch (serverError) {
                 // 如果服务器端测试失败（可能是网络问题），尝试浏览器端测试
                 console.warn('服务器端测试失败，尝试浏览器端测试:', serverError.message);
