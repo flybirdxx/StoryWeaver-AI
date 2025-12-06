@@ -18,15 +18,20 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const looksLikeRateLimit = (error: any): boolean => {
   if (!error) return false;
+  // 检查 429 (Rate Limit) 和 503 (Service Unavailable/Overloaded)
   if (error.status === 429 || error.code === 429) return true;
+  if (error.status === 503 || error.code === 503) return true;
   const code = (error.code || error.status || '').toString();
   if (code.includes('RESOURCE_EXHAUSTED')) return true;
-  return typeof error.message === 'string' && error.message.includes('429');
+  if (code.includes('UNAVAILABLE')) return true;
+  const message = typeof error.message === 'string' ? error.message : '';
+  if (message.includes('429') || message.includes('overloaded') || message.includes('try again later')) return true;
+  return false;
 };
 
 async function generateWithRetry<T>(
   fn: () => Promise<T>,
-  retries = Number(process.env.GENERATION_RETRY_LIMIT) || 3
+  retries = Number(process.env.GENERATION_RETRY_LIMIT) || 5
 ): Promise<T> {
   let attempt = 0;
   let lastError: any;
@@ -36,16 +41,27 @@ async function generateWithRetry<T>(
       return await fn();
     } catch (error: any) {
       lastError = error;
-      if (!looksLikeRateLimit(error) || attempt === retries - 1) {
+      const isRetryable = looksLikeRateLimit(error);
+      
+      if (!isRetryable || attempt === retries - 1) {
         throw error;
       }
 
-      const backoff = Math.pow(2, attempt) * 1000;
+      // 对于 503 错误（服务过载），使用更长的退避时间
+      const isOverloaded = error.status === 503 || error.code === 503 || 
+                          (typeof error.message === 'string' && error.message.includes('overloaded'));
+      
+      // 基础退避时间：指数退避，503 错误使用更长的初始延迟
+      const baseDelay = isOverloaded ? 5000 : 1000; // 503 错误初始延迟 5 秒
+      const backoff = Math.pow(2, attempt) * baseDelay;
+      const maxDelay = 30000; // 最大延迟 30 秒
+      const delayTime = Math.min(backoff, maxDelay);
+      
       // eslint-disable-next-line no-console
       console.warn(
-        `[图像生成] 命中速率限制，${backoff}ms 后重试 (attempt ${attempt + 1}/${retries})`
+        `[图像生成] ${isOverloaded ? '服务过载' : '命中速率限制'}，${delayTime}ms 后重试 (attempt ${attempt + 1}/${retries})`
       );
-      await delay(backoff);
+      await delay(delayTime);
       attempt += 1;
     }
   }

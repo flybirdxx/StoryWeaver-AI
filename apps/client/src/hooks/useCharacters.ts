@@ -305,10 +305,24 @@ export function useCharacters(): UseCharactersReturn {
       });
       
       console.log('[角色图像生成] 角色数据已更新');
-    } catch (err: any) {
-      console.error('生成角色图像失败:', err);
-      toast.error('生成角色参考图失败', err.message);
-    }
+        } catch (err: any) {
+          console.error('生成角色图像失败:', err);
+          const isOverloaded = err.status === 503 || 
+                              err.code === 503 || 
+                              err.code === 'UNAVAILABLE' ||
+                              (typeof err.message === 'string' && 
+                               (err.message.includes('overloaded') || 
+                                err.message.includes('try again later')));
+          
+          if (isOverloaded) {
+            toast.error(
+              '服务暂时过载',
+              'Gemini API 当前负载较高，系统已自动重试。如果仍然失败，请稍后再试。'
+            );
+          } else {
+            toast.error('生成角色参考图失败', err.message);
+          }
+        }
   }, [characters, updateCharacter]);
 
   const syncFromAnalysis = useCallback(async (extractedCharacters: any[]) => {

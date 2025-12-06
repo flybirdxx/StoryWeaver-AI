@@ -262,10 +262,26 @@ export function useStoryboard(): UseStoryboardReturn {
         console.error('图像生成错误:', error);
         setGenerationProgress(null);
         setGeneratingPanelId(null);
-        toast.error(
-          '生成失败',
-          `${error.message || '未知错误'}\n\n请检查:\n1. API Key 是否正确配置且有图像生成权限\n2. 网络连接是否正常\n3. 提示词是否有效`
-        );
+        
+        // 检查是否是服务过载错误
+        const isOverloaded = error.status === 503 || 
+                            error.code === 503 || 
+                            error.code === 'UNAVAILABLE' ||
+                            (typeof error.message === 'string' && 
+                             (error.message.includes('overloaded') || 
+                              error.message.includes('try again later')));
+        
+        if (isOverloaded) {
+          toast.error(
+            '服务暂时过载',
+            'Gemini API 当前负载较高，系统已自动重试。如果仍然失败，请稍后再试。'
+          );
+        } else {
+          toast.error(
+            '生成失败',
+            `${error.message || '未知错误'}\n\n请检查:\n1. API Key 是否正确配置且有图像生成权限\n2. 网络连接是否正常\n3. 提示词是否有效`
+          );
+        }
       } finally {
         setIsGenerating(false);
       }
@@ -332,7 +348,21 @@ export function useStoryboard(): UseStoryboardReturn {
         }
       } catch (error: any) {
         console.error('批量生成错误:', error);
-        toast.error('批量生成失败', error.message || '未知错误');
+        const isOverloaded = error.status === 503 || 
+                            error.code === 503 || 
+                            error.code === 'UNAVAILABLE' ||
+                            (typeof error.message === 'string' && 
+                             (error.message.includes('overloaded') || 
+                              error.message.includes('try again later')));
+        
+        if (isOverloaded) {
+          toast.error(
+            '服务暂时过载',
+            'Gemini API 当前负载较高，系统已自动重试。如果仍然失败，请稍后再试。'
+          );
+        } else {
+          toast.error('批量生成失败', error.message || '未知错误');
+        }
       } finally {
         setIsGenerating(false);
       }
@@ -416,7 +446,22 @@ export function useStoryboard(): UseStoryboardReturn {
         console.error(`分镜 ${panelId} 重新生成失败:`, error);
         // 更新状态为失败
         updatePanelStatus(panelId, 'failed');
-        toast.error('重新生成失败', `${error.message || '未知错误'}\n\n请检查:\n1. API Key 是否正确配置\n2. 网络连接是否正常\n3. 提示词是否有效`);
+        
+        const isOverloaded = error.status === 503 || 
+                            error.code === 503 || 
+                            error.code === 'UNAVAILABLE' ||
+                            (typeof error.message === 'string' && 
+                             (error.message.includes('overloaded') || 
+                              error.message.includes('try again later')));
+        
+        if (isOverloaded) {
+          toast.error(
+            '服务暂时过载',
+            'Gemini API 当前负载较高，系统已自动重试。如果仍然失败，请稍后再试。'
+          );
+        } else {
+          toast.error('重新生成失败', `${error.message || '未知错误'}\n\n请检查:\n1. API Key 是否正确配置\n2. 网络连接是否正常\n3. 提示词是否有效`);
+        }
       } finally {
         setGeneratingPanelId(null);
         setIsGenerating(false);
