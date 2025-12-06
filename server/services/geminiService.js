@@ -56,45 +56,68 @@ ${script}
       const fetch = globalThis.fetch || require('node-fetch');
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${this.apiKey}`;
       
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }]
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      // 创建 AbortController 用于超时控制
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
       
-      // 提取响应文本
-      let text = '';
-      if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-        const parts = data.candidates[0].content.parts;
-        if (parts && parts[0] && parts[0].text) {
-          text = parts[0].text;
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{ text: prompt }]
+            }]
+          }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
         }
-      }
 
-      if (!text) {
-        throw new Error('无法从响应中提取文本内容');
+        const data = await response.json();
+        
+        // 提取响应文本
+        let text = '';
+        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+          const parts = data.candidates[0].content.parts;
+          if (parts && parts[0] && parts[0].text) {
+            text = parts[0].text;
+          }
+        }
+
+        if (!text) {
+          throw new Error('无法从响应中提取文本内容');
+        }
+        
+        // 尝试解析 JSON（可能包含 markdown 代码块）
+        const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/```\s*([\s\S]*?)\s*```/);
+        const jsonText = jsonMatch ? jsonMatch[1] : text;
+        
+        return JSON.parse(jsonText.trim());
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        // 处理网络错误
+        if (fetchError.name === 'AbortError') {
+          throw new Error('请求超时：连接 Gemini API 超过 60 秒');
+        }
+        if (fetchError.message?.includes('fetch failed') || fetchError.code === 'ECONNREFUSED' || fetchError.code === 'ETIMEDOUT') {
+          throw new Error('网络连接失败：无法连接到 Gemini API。请检查网络连接或防火墙设置。');
+        }
+        throw fetchError;
       }
-      
-      // 尝试解析 JSON（可能包含 markdown 代码块）
-      const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/```\s*([\s\S]*?)\s*```/);
-      const jsonText = jsonMatch ? jsonMatch[1] : text;
-      
-      return JSON.parse(jsonText.trim());
     } catch (error) {
       console.error('Gemini API 错误:', error);
+      // 提供更详细的错误信息
+      if (error.message.includes('网络连接失败') || error.message.includes('请求超时')) {
+        throw error;
+      }
       throw new Error(`剧本分析失败: ${error.message}`);
     }
   }

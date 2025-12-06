@@ -161,12 +161,24 @@ export function useCharacters(): UseCharactersReturn {
       return;
     }
 
-    // 构建三视图提示词：要求生成完整的角色三视图（正面、侧面、背面）
-    // 使用 3:4 或 2:3 比例，确保角色完整显示
-    const threeViewPrompt = `Generate a character reference sheet showing full body character design. ${promptParts.join('. ')}. 
-Character sheet layout: front view on left, side view in center, back view on right. 
-Full body visible from head to toe, no cropping. Character design sheet style, clean white background, professional character reference format. 
-All three views should show the complete character clearly and consistently.`;
+    // 结构化的 Character Sheet 提示词（按照优化建议）
+    // Technical Specs
+    const technicalSpecs = 'Character Reference Sheet, Concept Art, High Quality, Neutral Lighting, White Background';
+    
+    // Layout Control
+    const layoutControl = 'Three views: Front view on left, Side view in center, Back view on right. Full body shot, standing pose, continuous consistency';
+    
+    // Character Description
+    const characterDescription = `[${name}]${tags.length ? `, Traits: ${tags.join(', ')}` : ''}${description ? `, ${description}` : ''}${basePrompt ? `, ${basePrompt}` : ''}`;
+    
+    // Style
+    const style = 'Japanese cel-shading style, clear lines, vibrant colors, professional character design';
+    
+    // Negative Prompts (防止生成大头照、裁剪等)
+    const negativePrompts = 'cropping, close-up, portrait, headshot, partial body, cut off, incomplete';
+    
+    // 组合完整提示词
+    const threeViewPrompt = `${technicalSpecs}. ${layoutControl}. ${characterDescription}. ${style}. Negative: ${negativePrompts}`;
 
     try {
       const response = await apiRequest<{ imageUrl: string; isUrl?: boolean }>('/image/generate', {
@@ -174,7 +186,7 @@ All three views should show the complete character clearly and consistently.`;
         body: JSON.stringify({
           prompt: threeViewPrompt,
           style: 'cel-shading',
-          aspectRatio: '3:4', // 使用 3:4 比例，更适合显示完整角色
+          aspectRatio: '3:2', // 使用 3:2 比例，更适合横向三视图布局
           imageSize: '2K'
         })
       });

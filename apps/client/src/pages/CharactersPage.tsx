@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCharacters } from '../hooks/useCharacters';
+import { CharacterCard } from '../features/characters/CharacterCard';
 import type { Character } from '@storyweaver/shared';
 
 export const CharactersPage: React.FC = () => {
@@ -22,11 +23,12 @@ export const CharactersPage: React.FC = () => {
     basePrompt: ''
   });
   const [isGeneratingImage, setIsGeneratingImage] = useState<string | null>(null);
-  
-  // 调试：检查状态变化
-  useEffect(() => {
-    console.log('[CharactersPage] isGeneratingImage 状态变化:', isGeneratingImage);
-  }, [isGeneratingImage]);
+  const [generationProgress, setGenerationProgress] = useState<{
+    [key: string]: {
+      stage: 'preparing' | 'drawing' | 'refining' | 'finalizing';
+      message: string;
+    };
+  }>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,15 +55,41 @@ export const CharactersPage: React.FC = () => {
   const handleGenerateImage = async (id: string) => {
     console.log('[CharactersPage] 开始生成图像，角色 ID:', id);
     setIsGeneratingImage(id);
+    
+    // 模拟进度反馈
+    const progressStages = [
+      { stage: 'preparing' as const, message: '正在准备角色设计...', delay: 300 },
+      { stage: 'drawing' as const, message: '正在绘制三视图...', delay: 500 },
+      { stage: 'refining' as const, message: '正在细化细节...', delay: 500 },
+      { stage: 'finalizing' as const, message: '正在完成最终渲染...', delay: 300 },
+    ];
+
     try {
+      // 逐步更新进度
+      for (const progressStage of progressStages) {
+        setGenerationProgress(prev => ({
+          ...prev,
+          [id]: {
+            stage: progressStage.stage,
+            message: progressStage.message
+          }
+        }));
+        await new Promise(resolve => setTimeout(resolve, progressStage.delay));
+      }
+
       await generateImage(id);
       console.log('[CharactersPage] 图像生成成功');
     } catch (error) {
       console.error('[CharactersPage] 图像生成失败:', error);
-      throw error; // 重新抛出错误，让调用者处理
+      throw error;
     } finally {
       console.log('[CharactersPage] 清除生成状态');
       setIsGeneratingImage(null);
+      setGenerationProgress(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     }
   };
 
@@ -100,7 +128,7 @@ export const CharactersPage: React.FC = () => {
           <p className="text-sm">点击"新建角色"开始创建</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {characters.map((char) => (
             <CharacterCard
               key={char.id}
@@ -108,6 +136,7 @@ export const CharactersPage: React.FC = () => {
               onDelete={deleteCharacter}
               onGenerateImage={handleGenerateImage}
               isGeneratingImage={isGeneratingImage !== null && String(isGeneratingImage) === String(char.id)}
+              generationProgress={generationProgress[char.id]}
             />
           ))}
         </div>
@@ -191,91 +220,5 @@ export const CharactersPage: React.FC = () => {
         </div>
       )}
     </section>
-  );
-};
-
-interface CharacterCardProps {
-  character: Character;
-  onDelete: (id: string) => void;
-  onGenerateImage: (id: string) => void;
-  isGeneratingImage: boolean;
-}
-
-const CharacterCard: React.FC<CharacterCardProps> = ({
-  character,
-  onDelete,
-  onGenerateImage,
-  isGeneratingImage
-}) => {
-  const [showActions, setShowActions] = useState(false);
-
-  return (
-    <div
-      className="bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-700 overflow-hidden group hover:border-orange-400 transition-all"
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
-    >
-      <div className="h-64 bg-stone-200 dark:bg-stone-800 relative overflow-hidden">
-        {isGeneratingImage ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-stone-100 dark:bg-stone-900 z-10">
-            <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-sm font-medium text-stone-700 dark:text-stone-300">正在生成角色三视图...</p>
-            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">生成完整角色参考图（正面/侧面/背面）</p>
-            <div className="mt-4 w-48 h-1 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
-              <div className="h-full bg-orange-500 animate-pulse" style={{ width: '60%' }}></div>
-            </div>
-          </div>
-        ) : character.imageUrl ? (
-          <img
-            src={character.imageUrl}
-            alt={character.name}
-            className="w-full h-full object-contain bg-white dark:bg-stone-900"
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-stone-400 dark:text-stone-500">
-            <div className="text-center">
-              <div className="text-2xl mb-2">📷</div>
-              <div className="text-sm">[Character Ref Image]</div>
-            </div>
-          </div>
-        )}
-        <div
-          className={`absolute top-2 right-2 flex gap-2 transition-opacity ${
-            showActions && !isGeneratingImage ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          <button
-            onClick={() => onGenerateImage(character.id)}
-            disabled={isGeneratingImage}
-            className="p-1 bg-stone-800 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isGeneratingImage ? '生成中...' : '生成参考图'}
-          </button>
-          <button
-            onClick={() => onDelete(character.id)}
-            disabled={isGeneratingImage}
-            className="p-1 bg-red-500 text-white rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            删除
-          </button>
-        </div>
-      </div>
-      <div className="p-6">
-        <h3 className="text-xl font-bold text-stone-800 dark:text-stone-100">{character.name}</h3>
-        <div className="flex gap-2 mt-2 mb-4 flex-wrap">
-          {(character.tags || []).map((tag, idx) => (
-            <span
-              key={idx}
-              className="text-xs bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 px-2 py-1 rounded"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-        <div className="text-xs text-stone-500 dark:text-stone-300 font-mono bg-stone-50 dark:bg-stone-900/80 p-2 rounded border border-stone-100 dark:border-stone-700 h-20 overflow-y-auto">
-          Base Prompt: {character.basePrompt || 'N/A'}
-        </div>
-      </div>
-    </div>
   );
 };
