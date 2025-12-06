@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 import { NavLink, Outlet, useParams, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { ArrowLeft, LayoutDashboard, FileText, Users, Film, Activity } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 
 /**
@@ -29,10 +31,10 @@ export const ProjectLayout: React.FC = () => {
   );
 
   const navItems = [
-    { path: 'dashboard', label: '概览', icon: '📊', locked: false },
-    { path: 'script', label: '剧本中心', icon: '📝', locked: false },
-    { path: 'characters', label: '角色库', icon: '👥', locked: !isAnalysisDone },
-    { path: 'storyboard', label: '故事板', icon: '🎬', locked: !isAnalysisDone },
+    { path: 'dashboard', label: '概览', icon: LayoutDashboard, locked: false },
+    { path: 'script', label: '剧本中心', icon: FileText, locked: false },
+    { path: 'characters', label: '角色库', icon: Users, locked: !isAnalysisDone },
+    { path: 'storyboard', label: '故事板', icon: Film, locked: !isAnalysisDone },
   ];
 
   const handleNavClick = (e: React.MouseEvent, item: typeof navItems[0]) => {
@@ -48,14 +50,18 @@ export const ProjectLayout: React.FC = () => {
       <aside className="w-64 border-r border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 hidden md:flex flex-col flex-shrink-0 z-20">
         {/* Sidebar Header: 返回书架 */}
         <div className="p-4 border-b border-stone-100 dark:border-stone-800">
-          <button 
+          <motion.button 
+            whileHover={{ x: -2 }}
             onClick={() => navigate('/')}
             className="flex items-center gap-2 text-stone-500 hover:text-orange-600 transition-colors text-sm font-medium mb-4"
           >
-            ← 返回书架
-          </button>
+            <ArrowLeft className="w-4 h-4" />
+            返回书架
+          </motion.button>
           <div className="flex items-center gap-2 px-2">
-            <span className="text-2xl">🧶</span>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-purple-500 flex items-center justify-center">
+              <span className="text-white text-sm font-bold">SW</span>
+            </div>
             <div className="overflow-hidden">
               <h1 className="text-base font-bold tracking-tight truncate" title={currentProject?.name}>
                 {currentProject?.name || '加载中...'}
@@ -85,7 +91,7 @@ export const ProjectLayout: React.FC = () => {
               }
             >
               <div className="flex items-center gap-3">
-                <span>{item.icon}</span>
+                <item.icon className="w-4 h-4" />
                 <span>{item.label}</span>
               </div>
               {item.locked && <span className="text-xs">🔒</span>}
@@ -96,9 +102,12 @@ export const ProjectLayout: React.FC = () => {
         {/* Sidebar Footer: Model Status */}
         <div className="p-4 border-t border-stone-100 dark:border-stone-800">
           <div className="bg-stone-100 dark:bg-stone-800/50 rounded-lg p-3 text-[10px] text-stone-500 dark:text-stone-400">
-            <div className="flex justify-between mb-1">
+            <div className="flex justify-between items-center mb-1">
               <span>AI Status:</span>
-              <span className="text-green-500">● Online</span>
+              <div className="flex items-center gap-1">
+                <Activity className="w-3 h-3 text-green-500 animate-pulse" />
+                <span className="text-green-500">Online</span>
+              </div>
             </div>
             <div>Model: Gemini 3 Pro</div>
           </div>

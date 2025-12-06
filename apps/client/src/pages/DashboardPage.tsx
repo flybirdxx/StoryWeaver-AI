@@ -1,18 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { Edit2, Film, Users, TrendingUp } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 import { useProjectStore, selectProjectProgress } from '../stores/useProjectStore';
 import { PipelineMonitor } from '../components/dashboard/PipelineMonitor';
 import { QuickActions } from '../components/dashboard/QuickActions';
 import { TaskCenter } from '../components/dashboard/TaskCenter';
 import { ProjectCharacters } from '../components/dashboard/ProjectCharacters';
-import type { Project } from '@storyweaver/shared';
-
-// Chart.js 类型声明（如果未安装 @types/chart.js）
-declare global {
-  interface Window {
-    Chart: any;
-  }
-}
 
 /**
  * DashboardPage - 项目内部概览
@@ -26,65 +21,21 @@ export const DashboardPage: React.FC = () => {
     calculateDistribution
   } = useDashboard();
 
-  const chartRef = useRef<HTMLCanvasElement>(null);
-  const chartInstanceRef = useRef<any>(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameForm, setRenameForm] = useState({ name: '', tags: '' });
 
-
-  // 渲染图表
-  useEffect(() => {
-    if (!chartRef.current || !window.Chart) return;
-
-    const panels = currentProject?.analysis?.panels || (window as any).storyboardData?.panels || [];
-    const distribution = calculateDistribution(panels);
-
-    // 销毁现有图表
-    if (chartInstanceRef.current) {
-      chartInstanceRef.current.destroy();
-    }
-
-    chartInstanceRef.current = new window.Chart(chartRef.current, {
-      type: 'doughnut',
-      data: {
-        labels: ['特写 (Close-up)', '中景 (Mid)', '全景 (Wide)', '动作 (Action)'],
-        datasets: [{
-          data: [
-            distribution['Close-up'] || 0,
-            distribution['Mid Shot'] || 0,
-            distribution['Wide Shot'] || 0,
-            distribution['Action'] || 0
-          ],
-          backgroundColor: [
-            '#3b82f6', // blue-500
-            '#a855f7', // purple-500
-            '#10b981', // emerald-500
-            '#f97316'  // orange-500
-          ],
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              usePointStyle: true,
-              font: { family: "'Noto Sans SC', sans-serif" }
-            }
-          }
-        }
-      }
-    });
-
-    return () => {
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.destroy();
-      }
-    };
-  }, [currentProject, calculateDistribution]);
+  // 准备图表数据
+  const projectPanels = currentProject?.analysis?.panels || (window as any).storyboardData?.panels || [];
+  const distribution = calculateDistribution(projectPanels);
+  
+  const chartData = [
+    { name: '特写', value: distribution['Close-up'] || 0, color: '#3b82f6' },
+    { name: '中景', value: distribution['Mid Shot'] || 0, color: '#a855f7' },
+    { name: '全景', value: distribution['Wide Shot'] || 0, color: '#10b981' },
+    { name: '动作', value: distribution['Action'] || 0, color: '#f97316' },
+  ].filter(item => item.value > 0);
+  
+  const totalValue = chartData.reduce((sum, item) => sum + item.value, 0);
 
   const openRename = () => {
     if (!currentProject) return;
@@ -105,9 +56,8 @@ export const DashboardPage: React.FC = () => {
     setShowRenameModal(false);
   };
 
-  const panels = currentProject?.analysis?.panels || [];
   const generatedPanels = currentProject?.generatedPanels || 0;
-  const totalPanels = currentProject?.totalPanels || panels.length;
+  const totalPanels = currentProject?.totalPanels || projectPanels.length;
   const progress = useProjectStore(selectProjectProgress);
 
   if (!currentProject) {
@@ -121,24 +71,40 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-6"
+    >
       <header className="flex justify-between items-end mb-2">
         <div>
           <h2 className="text-3xl font-bold text-stone-800 dark:text-stone-100">项目控制台</h2>
           <p className="text-stone-500 dark:text-stone-400 mt-1">概览数据与创作进度</p>
         </div>
-        <button 
+        <motion.button 
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={openRename}
-          className="text-sm text-stone-500 hover:text-orange-600 underline"
+          className="flex items-center gap-2 text-sm text-stone-500 hover:text-orange-600 transition-colors"
         >
+          <Edit2 className="w-4 h-4" />
           修改项目信息
-        </button>
+        </motion.button>
       </header>
 
       {/* Top Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm">
-          <div className="text-xs text-stone-500 mb-1">当前项目</div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-2 text-xs text-stone-500 mb-1">
+            <Film className="w-4 h-4" />
+            当前项目
+          </div>
           <div className="text-lg font-bold truncate" title={currentProject.name}>
             {currentProject.name}
           </div>
@@ -152,28 +118,57 @@ export const DashboardPage: React.FC = () => {
               </span>
             ))}
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm">
-          <div className="text-xs text-stone-500 mb-1">生成进度</div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-2 text-xs text-stone-500 mb-1">
+            <TrendingUp className="w-4 h-4" />
+            生成进度
+          </div>
           <div className="text-2xl font-black text-orange-500">{generatedPanels}/{totalPanels}</div>
           <div className="w-full bg-stone-100 dark:bg-stone-800 h-1.5 rounded-full mt-2 overflow-hidden">
-            <div className="bg-orange-500 h-full" style={{ width: `${progress}%` }}></div>
+            <motion.div 
+              className="bg-orange-500 h-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 1, delay: 0.3 }}
+            />
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm">
-          <div className="text-xs text-stone-500 mb-1">分镜总数</div>
-          <div className="text-2xl font-black text-stone-800 dark:text-stone-100">{panels.length}</div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-2 text-xs text-stone-500 mb-1">
+            <Film className="w-4 h-4" />
+            分镜总数
+          </div>
+          <div className="text-2xl font-black text-stone-800 dark:text-stone-100">{projectPanels.length}</div>
           <div className="text-xs text-stone-400 mt-1">
             Stage: {currentProject.stats?.stage || 'Scripting'}
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm">
-          <div className="text-xs text-stone-500 mb-1">主要角色</div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-2 text-xs text-stone-500 mb-1">
+            <Users className="w-4 h-4" />
+            主要角色
+          </div>
           <ProjectCharacters project={currentProject} maxVisible={3} />
-        </div>
+        </motion.div>
       </div>
 
       {/* Middle Section: Pipeline & Chart */}
@@ -181,12 +176,61 @@ export const DashboardPage: React.FC = () => {
         <div className="lg:col-span-2">
           <PipelineMonitor project={currentProject} />
         </div>
-        <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-800">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.5 }}
+          className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-800"
+        >
           <h3 className="text-sm font-bold mb-4 text-stone-700 dark:text-stone-200">镜头节奏分布</h3>
-          <div className="chart-container h-[200px]">
-            <canvas ref={chartRef}></canvas>
-          </div>
-        </div>
+          {chartData.length > 0 ? (
+            <div className="h-[200px] relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => [`${value} 个`, '数量']}
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      padding: '8px 12px'
+                    }}
+                  />
+                  <Legend 
+                    verticalAlign="bottom"
+                    height={36}
+                    formatter={(value) => value}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              {totalValue > 0 && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-stone-800 dark:text-stone-100">{totalValue}</div>
+                    <div className="text-xs text-stone-500 dark:text-stone-400">个分镜</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="h-[200px] flex items-center justify-center text-stone-400 text-sm">
+              暂无数据
+            </div>
+          )}
+        </motion.div>
       </div>
 
       {/* Bottom Section: Tasks */}
@@ -231,6 +275,6 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

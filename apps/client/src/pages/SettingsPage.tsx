@@ -1,5 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Key, Save, CheckCircle, XCircle } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 
 /**
@@ -24,20 +26,29 @@ export const SettingsPage: React.FC = () => {
     <div className="min-h-screen bg-stone-100 dark:bg-stone-950 p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header with back button */}
-        <header className="mb-8">
-          <button
+        <motion.header 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <motion.button
+            whileHover={{ x: -2 }}
             onClick={() => navigate('/')}
             className="flex items-center gap-2 text-stone-500 hover:text-orange-600 transition-colors text-sm font-medium mb-4"
           >
-            ← 返回书架
-          </button>
+            <ArrowLeft className="w-4 h-4" />
+            返回书架
+          </motion.button>
           <h2 className="text-3xl font-bold text-stone-800 dark:text-stone-100">系统设置</h2>
           <p className="text-stone-500 dark:text-stone-400 mt-2">配置 API Key 和全局选项</p>
-        </header>
+        </motion.header>
         <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 max-w-2xl transition-colors">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1">Gemini API Key</label>
+            <label className="flex items-center gap-2 text-sm font-medium text-stone-700 dark:text-stone-300 mb-1">
+              <Key className="w-4 h-4" />
+              Gemini API Key
+            </label>
             <div className="flex gap-2">
               <input
                 type="password"
@@ -56,21 +67,30 @@ export const SettingsPage: React.FC = () => {
             </div>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">用于访问 Gemini 3 Pro (逻辑分析和图像生成)。</p>
             <div className="flex gap-2 mt-2">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={saveApiKey}
-                className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 transition-colors"
               >
+                <Save className="w-4 h-4" />
                 保存
-              </button>
+              </motion.button>
               {testResult && (
-                <div
-                  className={`flex items-center text-sm ${
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`flex items-center gap-2 text-sm ${
                     testResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                   }`}
                 >
-                  <span className="mr-1">{testResult.success ? '✓' : '✗'}</span>
+                  {testResult.success ? (
+                    <CheckCircle className="w-4 h-4" />
+                  ) : (
+                    <XCircle className="w-4 h-4" />
+                  )}
                   <span>{testResult.message}</span>
-                </div>
+                </motion.div>
               )}
             </div>
           </div>
