@@ -94,7 +94,8 @@ export const CharactersPage: React.FC = () => {
   };
 
   const handleGoToStoryboard = () => {
-    navigate('/storyboard');
+    // 使用相对路径，因为现在在项目工作台内
+    navigate('storyboard');
   };
 
   return (

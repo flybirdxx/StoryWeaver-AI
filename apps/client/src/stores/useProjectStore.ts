@@ -155,9 +155,17 @@ export const useProjectStore = create<ProjectState>()(
         return newPanel;
       });
       state.panels = merged;
-      // 同步更新 window.storyboardData
+      // 同步更新 window.storyboardData（创建新对象避免只读属性错误）
       if ((window as any).storyboardData) {
-        (window as any).storyboardData.panels = merged;
+        try {
+          (window as any).storyboardData = {
+            ...(window as any).storyboardData,
+            panels: merged
+          };
+        } catch (error) {
+          // 如果无法修改，忽略错误（可能是只读对象）
+          console.warn('[useProjectStore] 无法更新 window.storyboardData:', error);
+        }
       }
     }),
     updatePanelStatus: (id: string | number, status: PanelStatus, url?: string) =>

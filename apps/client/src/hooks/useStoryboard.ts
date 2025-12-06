@@ -95,7 +95,15 @@ export function useStoryboard(): UseStoryboardReturn {
       const updated = storyboardData.panels.map((panel: Panel) =>
         panel.id === id ? { ...panel, imageUrl, imageIsUrl: isUrl, status: 'completed' } : panel
       );
-      storyboardData.panels = updated;
+      // 创建新对象避免只读属性错误
+      try {
+        (window as any).storyboardData = {
+          ...storyboardData,
+          panels: updated
+        };
+      } catch (error) {
+        console.warn('[useStoryboard] 无法更新 window.storyboardData:', error);
+      }
       console.log('[useStoryboard] 已同步更新 window.storyboardData，面板 ID:', id);
     } else {
       // 如果 storyboardData 不存在，从 store 创建它

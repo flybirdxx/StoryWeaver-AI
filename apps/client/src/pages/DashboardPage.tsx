@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useDashboard } from '../hooks/useDashboard';
 import { useProjectStore, selectProjectProgress } from '../stores/useProjectStore';
 import { PipelineMonitor } from '../components/dashboard/PipelineMonitor';
@@ -15,29 +14,23 @@ declare global {
   }
 }
 
+/**
+ * DashboardPage - 项目内部概览
+ * 修改说明：移除了左侧的"书架"列表，因为现在书架是首页 (ProjectsPage)。
+ * 此页面现在专注于展示"当前项目"的数据统计。
+ */
 export const DashboardPage: React.FC = () => {
-  const navigate = useNavigate();
   const {
-    projects,
     currentProject,
-    isLoading,
-    selectProject,
-    deleteProject,
     renameProject,
     calculateDistribution
   } = useDashboard();
 
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstanceRef = useRef<any>(null);
-  const [showRenameModal, setShowRenameModal] = useState<{ projectId: string; name: string; tags: string[] } | null>(null);
+  const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameForm, setRenameForm] = useState({ name: '', tags: '' });
 
-  const featureCatalog = [
-    { id: 'analysis', label: '剧本拆解 (Script Studio)' },
-    { id: 'storyboard', label: '分镜画布 (Storyboard)' },
-    { id: 'characters', label: '角色一致性 (Character Bank)' },
-    { id: 'image', label: 'Gemini 3 图像生成' }
-  ];
 
   // 渲染图表
   useEffect(() => {
@@ -93,243 +86,143 @@ export const DashboardPage: React.FC = () => {
     };
   }, [currentProject, calculateDistribution]);
 
-  const handleRename = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
-    if (!project) return;
-    setRenameForm({
-      name: project.name,
-      tags: (project.tags || []).join(', ')
+  const openRename = () => {
+    if (!currentProject) return;
+    setRenameForm({ 
+      name: currentProject.name || '', 
+      tags: (currentProject.tags || []).join(', ') 
     });
-    setShowRenameModal({ projectId, name: project.name, tags: project.tags || [] });
+    setShowRenameModal(true);
   };
 
   const handleRenameSubmit = async () => {
-    if (!showRenameModal) return;
+    if (!currentProject) return;
     const tags = renameForm.tags
       .split(/[,，]/)
       .map(t => t.trim())
       .filter(Boolean);
-    await renameProject(showRenameModal.projectId, renameForm.name, tags);
-    setShowRenameModal(null);
+    await renameProject(currentProject.id, renameForm.name, tags);
+    setShowRenameModal(false);
   };
 
   const panels = currentProject?.analysis?.panels || [];
-  const generatedPanels = currentProject?.generatedPanels || currentProject?.totalPanels || panels.length;
+  const generatedPanels = currentProject?.generatedPanels || 0;
   const totalPanels = currentProject?.totalPanels || panels.length;
-  // 使用 computed selector 计算进度
   const progress = useProjectStore(selectProjectProgress);
 
+  if (!currentProject) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-stone-500 dark:text-stone-400">加载项目数据中...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <section className="space-y-6">
-      <header className="mb-8">
-        <h2 className="text-3xl font-bold text-stone-800 dark:text-stone-100">创作概览</h2>
-        <p className="text-stone-500 dark:text-stone-400 mt-2">欢迎回来，导演。这里是您的项目控制中心。</p>
+    <div className="space-y-6">
+      <header className="flex justify-between items-end mb-2">
+        <div>
+          <h2 className="text-3xl font-bold text-stone-800 dark:text-stone-100">项目控制台</h2>
+          <p className="text-stone-500 dark:text-stone-400 mt-1">概览数据与创作进度</p>
+        </div>
+        <button 
+          onClick={openRename}
+          className="text-sm text-stone-500 hover:text-orange-600 underline"
+        >
+          修改项目信息
+        </button>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* Bookshelf */}
-        <aside className="xl:col-span-1 space-y-4">
-          <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 h-full flex flex-col transition-colors">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-stone-800 dark:text-stone-100">书架</h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">保存的剧本项目</p>
-              </div>
-              <button
-                onClick={() => navigate('/script')}
-                className="text-xs text-orange-600 hover:text-orange-700 dark:text-orange-400"
+      {/* Top Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm">
+          <div className="text-xs text-stone-500 mb-1">当前项目</div>
+          <div className="text-lg font-bold truncate" title={currentProject.name}>
+            {currentProject.name}
+          </div>
+          <div className="flex gap-1 mt-2">
+            {(currentProject.tags || []).slice(0, 2).map(tag => (
+              <span 
+                key={tag} 
+                className="text-[10px] bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded text-stone-500"
               >
-                + 新剧本
-              </button>
-            </div>
-            {projects.length === 0 ? (
-              <div className="text-sm text-stone-400 dark:text-stone-500 bg-stone-50 dark:bg-stone-800/50 border border-dashed border-stone-200 dark:border-stone-700 rounded-lg p-4 text-center">
-                还没有保存的剧本。请在剧本中心分析后，点击"保存到书架"。
-              </div>
-            ) : (
-              <div className="space-y-3 overflow-y-auto pr-2 flex-1">
-                {projects.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    project={project}
-                    isActive={currentProject?.id === project.id}
-                    onSelect={() => selectProject(project.id)}
-                    onRename={() => handleRename(project.id)}
-                    onDelete={() => deleteProject(project.id)}
-                  />
-                ))}
-              </div>
-            )}
+                {tag}
+              </span>
+            ))}
           </div>
-        </aside>
+        </div>
 
-        {/* Project Overview */}
-        <div className="xl:col-span-3 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Current Project */}
-            <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="text-sm text-stone-500 dark:text-stone-400 mb-1">当前项目</div>
-                  <div className="text-2xl font-bold text-stone-800 dark:text-stone-100">
-                    {currentProject?.name || '尚未选择剧本'}
-                  </div>
-                  <p className="text-sm text-stone-500 dark:text-stone-400 mt-2 leading-relaxed">
-                    {currentProject?.logline || currentProject?.theme || '选择左侧书架中的剧本，即可查看项目详情和概览功能。'}
-                  </p>
-                  {currentProject?.tags && currentProject.tags.length > 0 && (
-                    <div className="mt-4 flex gap-2 flex-wrap">
-                      {currentProject.tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-1 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 text-xs rounded"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <ProjectCharacters project={currentProject} maxVisible={5} />
-                </div>
-                <div className="text-xs text-stone-400 dark:text-stone-500 text-right">
-                  最近更新：{currentProject?.updatedAt ? new Date(currentProject.updatedAt).toLocaleString() : '--'}
-                </div>
-              </div>
-            </div>
-
-            {/* Feature List */}
-            <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <div className="text-sm text-stone-500 dark:text-stone-400 mb-1">概览支持的功能</div>
-                  <h3 className="text-xl font-bold text-stone-800 dark:text-stone-100">Pipeline Access</h3>
-                </div>
-                <span className="text-xs text-stone-400 dark:text-stone-500">
-                  {(currentProject?.availableFeatures || []).length}/{featureCatalog.length} 已启用
-                </span>
-              </div>
-              <ul className="space-y-2 text-sm">
-                {featureCatalog.map((feature) => {
-                  const active = (currentProject?.availableFeatures || []).includes(feature.id);
-                  return (
-                    <li
-                      key={feature.id}
-                      className={`flex items-center gap-2 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-400 dark:text-stone-500'}`}
-                    >
-                      <span className={`w-2 h-2 rounded-full ${active ? 'bg-emerald-500' : 'bg-stone-200 dark:bg-stone-700'}`}></span>
-                      {feature.label}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+        <div className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm">
+          <div className="text-xs text-stone-500 mb-1">生成进度</div>
+          <div className="text-2xl font-black text-orange-500">{generatedPanels}/{totalPanels}</div>
+          <div className="w-full bg-stone-100 dark:bg-stone-800 h-1.5 rounded-full mt-2 overflow-hidden">
+            <div className="bg-orange-500 h-full" style={{ width: `${progress}%` }}></div>
           </div>
+        </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Panel Progress */}
-            <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
-              <div className="text-sm text-stone-500 dark:text-stone-400 mb-1">分镜生成进度</div>
-              <div className="text-4xl font-black tracking-tight text-orange-500">
-                {generatedPanels}/{totalPanels} <span className="text-sm text-stone-400 font-normal">关键帧</span>
-              </div>
-              <div className="w-full bg-stone-100 dark:bg-stone-800 h-2 rounded-full mt-4 overflow-hidden">
-                <div
-                  className="bg-orange-500 h-full transition-all"
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-            </div>
-
-            {/* Project Rhythm */}
-            <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
-              <div className="text-sm text-stone-500 dark:text-stone-400 mb-1">项目节奏</div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-stone-400 dark:text-stone-500">分镜数量</div>
-                  <div className="text-3xl font-black text-stone-800 dark:text-stone-100">{panels.length}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm text-stone-400 dark:text-stone-500">阶段</div>
-                  <div className="text-2xl font-black text-stone-800 dark:text-stone-100">
-                    {currentProject?.stats?.stage || currentProject?.stage || '等待分析'}
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-stone-400 dark:text-stone-500 mt-4">
-                {currentProject
-                  ? `结构段落：${currentProject.stats?.scenes || currentProject.analysis?.structure?.length || '-'} / 分镜：${panels.length}`
-                  : '在剧本中心完成一次分析后，可解锁更多可视化。'}
-              </p>
-            </div>
-
-            {/* API Token Usage */}
-            <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
-              <div className="text-sm text-stone-500 dark:text-stone-400 mb-1">API Token 消耗</div>
-              <div className="text-4xl font-black text-stone-800 dark:text-stone-100">
-                12,450 <span className="text-sm text-stone-400 font-normal">Tokens</span>
-              </div>
-              <p className="text-xs text-stone-400 dark:text-stone-500 mt-4">重置日期: 2025-12-01</p>
-            </div>
+        <div className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm">
+          <div className="text-xs text-stone-500 mb-1">分镜总数</div>
+          <div className="text-2xl font-black text-stone-800 dark:text-stone-100">{panels.length}</div>
+          <div className="text-xs text-stone-400 mt-1">
+            Stage: {currentProject.stats?.stage || 'Scripting'}
           </div>
+        </div>
 
-          {/* Pipeline Visualizer & Chart */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* LLM Pipeline Visualizer */}
-            <PipelineMonitor project={currentProject} />
+        <div className="bg-white dark:bg-stone-900 p-5 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm">
+          <div className="text-xs text-stone-500 mb-1">主要角色</div>
+          <ProjectCharacters project={currentProject} maxVisible={3} />
+        </div>
+      </div>
 
-            {/* Shot Distribution Chart */}
-            <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-100 dark:border-stone-800 transition-colors">
-              <h3 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-2">镜头类型分布</h3>
-              <p className="text-xs text-stone-500 dark:text-stone-400 mb-4">分析当前剧本的视觉节奏</p>
-              <div className="chart-container" style={{ height: '200px' }}>
-                <canvas ref={chartRef}></canvas>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions & Task Center */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <QuickActions />
-            <TaskCenter maxVisible={5} />
+      {/* Middle Section: Pipeline & Chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <PipelineMonitor project={currentProject} />
+        </div>
+        <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm border border-stone-200 dark:border-stone-800">
+          <h3 className="text-sm font-bold mb-4 text-stone-700 dark:text-stone-200">镜头节奏分布</h3>
+          <div className="chart-container h-[200px]">
+            <canvas ref={chartRef}></canvas>
           </div>
         </div>
       </div>
 
+      {/* Bottom Section: Tasks */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <QuickActions />
+        <TaskCenter />
+      </div>
+
       {/* Rename Modal */}
       {showRenameModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-stone-900 rounded-xl p-6 max-w-md w-full mx-4 border border-stone-200 dark:border-stone-700">
-            <h3 className="text-xl font-bold mb-4 text-stone-800 dark:text-stone-100">修改项目</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-stone-900 rounded-xl p-6 max-w-md w-full border border-stone-200 dark:border-stone-700">
+            <h3 className="text-xl font-bold mb-4">修改项目信息</h3>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1">项目标题</label>
-                <input
-                  type="text"
-                  value={renameForm.name}
-                  onChange={(e) => setRenameForm({ ...renameForm, name: e.target.value })}
-                  className="w-full p-2 border border-stone-300 dark:border-stone-700 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1">项目标签（逗号分隔）</label>
-                <input
-                  type="text"
-                  value={renameForm.tags}
-                  onChange={(e) => setRenameForm({ ...renameForm, tags: e.target.value })}
-                  className="w-full p-2 border border-stone-300 dark:border-stone-700 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100"
-                />
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowRenameModal(null)}
-                  className="px-4 py-2 bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-200 rounded-lg"
+              <input 
+                className="w-full p-2 border rounded bg-transparent"
+                value={renameForm.name}
+                onChange={e => setRenameForm({...renameForm, name: e.target.value})}
+                placeholder="项目名称"
+              />
+              <input 
+                className="w-full p-2 border rounded bg-transparent"
+                value={renameForm.tags}
+                onChange={e => setRenameForm({...renameForm, tags: e.target.value})}
+                placeholder="标签 (逗号分隔)"
+              />
+              <div className="flex justify-end gap-2">
+                <button 
+                  onClick={() => setShowRenameModal(false)} 
+                  className="px-4 py-2 text-stone-500"
                 >
                   取消
                 </button>
-                <button
-                  onClick={handleRenameSubmit}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+                <button 
+                  onClick={handleRenameSubmit} 
+                  className="px-4 py-2 bg-orange-600 text-white rounded"
                 >
                   保存
                 </button>
@@ -338,67 +231,6 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       )}
-    </section>
-  );
-};
-
-interface ProjectCardProps {
-  project: Project;
-  isActive: boolean;
-  onSelect: () => void;
-  onRename: () => void;
-  onDelete: () => void;
-}
-
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, isActive, onSelect, onRename, onDelete }) => {
-  const [showActions, setShowActions] = useState(false);
-  const panels = project.generatedPanels || project.totalPanels || 0;
-  const updated = project.updatedAt ? new Date(project.updatedAt).toLocaleDateString() : '刚保存';
-
-  return (
-    <div
-      className={`group border rounded-lg p-3 mb-2 transition-all ${
-        isActive
-          ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30 text-orange-800 dark:text-orange-200 shadow-sm'
-          : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600'
-      }`}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
-    >
-      <button className="w-full text-left" onClick={onSelect}>
-        <div className="flex items-center justify-between">
-          <div className="font-semibold truncate">{project.name}</div>
-          <span className="text-xs text-stone-400 dark:text-stone-500">{panels} 镜头</span>
-        </div>
-        <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 truncate">
-          {project.tags?.join(' / ') || '未分类'}
-        </p>
-        <p className="text-[11px] text-stone-300 dark:text-stone-600 mt-1">更新：{updated}</p>
-      </button>
-      <div
-        className={`mt-2 flex justify-end gap-2 transition-opacity text-xs ${
-          showActions ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRename();
-          }}
-          className="px-2 py-1 rounded border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800"
-        >
-          重命名
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="px-2 py-1 rounded border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
-        >
-          删除
-        </button>
-      </div>
     </div>
   );
 };

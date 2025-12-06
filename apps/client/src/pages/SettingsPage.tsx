@@ -1,7 +1,13 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../hooks/useSettings';
 
+/**
+ * SettingsPage - 全局设置页面
+ * 从项目内移出，提升至 L1 层级，与书架同级
+ */
 export const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const {
     geminiApiKey,
     setGeminiApiKey,
@@ -15,11 +21,20 @@ export const SettingsPage: React.FC = () => {
   } = useSettings();
 
   return (
-    <section className="space-y-6">
-      <header>
-        <h2 className="text-3xl font-bold text-stone-800 dark:text-stone-100">系统设置</h2>
-      </header>
-      <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 max-w-2xl transition-colors">
+    <div className="min-h-screen bg-stone-100 dark:bg-stone-950 p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header with back button */}
+        <header className="mb-8">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-stone-500 hover:text-orange-600 transition-colors text-sm font-medium mb-4"
+          >
+            ← 返回书架
+          </button>
+          <h2 className="text-3xl font-bold text-stone-800 dark:text-stone-100">系统设置</h2>
+          <p className="text-stone-500 dark:text-stone-400 mt-2">配置 API Key 和全局选项</p>
+        </header>
+        <div className="bg-white dark:bg-stone-900 p-6 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 max-w-2xl transition-colors">
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1">Gemini API Key</label>
@@ -94,6 +109,7 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </section>
+      </div>
+    </div>
   );
 };

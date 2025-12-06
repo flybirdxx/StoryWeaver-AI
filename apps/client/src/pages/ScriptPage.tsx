@@ -32,7 +32,7 @@ export const ScriptPage: React.FC = () => {
 
   const handleSaveToShelf = async () => {
     await saveToShelfOriginal();
-    // 重新加载 Dashboard 的项目列表
+    // 保存后返回书架
     navigate('/');
   };
 
