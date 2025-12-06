@@ -139,7 +139,27 @@ export const useProjectStore = create<ProjectState>()(
       }),
     
     // 分镜操作方法
-    setPanels: (panels: Panel[]) => set({ panels }),
+    setPanels: (panels: Panel[]) => set((state) => {
+      // 智能合并：保留已有面板的图像数据
+      const merged = panels.map((newPanel) => {
+        const existing = state.panels.find(p => p.id === newPanel.id);
+        // 如果已有面板有图像，保留它
+        if (existing?.imageUrl && !newPanel.imageUrl) {
+          return {
+            ...newPanel,
+            imageUrl: existing.imageUrl,
+            imageIsUrl: existing.imageIsUrl,
+            status: existing.status || newPanel.status
+          };
+        }
+        return newPanel;
+      });
+      state.panels = merged;
+      // 同步更新 window.storyboardData
+      if ((window as any).storyboardData) {
+        (window as any).storyboardData.panels = merged;
+      }
+    }),
     updatePanelStatus: (id: string | number, status: PanelStatus, url?: string) =>
       set((state) => {
         const panel = state.panels.find((p: Panel) => p.id === id);

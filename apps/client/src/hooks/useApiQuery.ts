@@ -43,9 +43,22 @@ export function useApiMutation<TData = any, TVariables = any>(
       // 支持动态endpoint（用于PUT/DELETE需要ID的情况）
       const url = typeof endpoint === 'function' ? endpoint(variables) : endpoint;
       
+      // 如果 variables 有 data 字段（如 { id, data }），只发送 data 部分
+      // 这是为了兼容 PUT /characters/:id 这种需要 ID 在 URL 中的情况
+      let body: any = variables;
+      if (variables && typeof variables === 'object' && 'data' in variables && 'id' in variables) {
+        // 提取 data 字段作为请求体
+        body = (variables as any).data;
+        console.log('[useApiMutation] 提取 data 字段作为请求体:', {
+          id: (variables as any).id,
+          dataKeys: Object.keys(body),
+          hasImageUrl: 'imageUrl' in body
+        });
+      }
+      
       const response = await apiRequest<TData>(url, {
         method,
-        body: method !== 'DELETE' ? JSON.stringify(variables) : undefined,
+        body: method !== 'DELETE' ? JSON.stringify(body) : undefined,
       });
       if (!response.success) {
         throw new Error(response.error || '操作失败');

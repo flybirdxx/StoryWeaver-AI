@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import './index.css';
+import { logDiagnostics } from './lib/api-diagnostic';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,6 +15,14 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// 开发环境：启动时诊断 API 连接
+if (import.meta.env.DEV) {
+  // 延迟 2 秒后运行诊断，给后端服务器启动时间
+  setTimeout(() => {
+    logDiagnostics().catch(console.error);
+  }, 2000);
+}
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

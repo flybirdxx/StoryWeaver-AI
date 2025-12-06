@@ -6,9 +6,9 @@
   "main": "server/index.js",
   "scripts": {
     "dev": "concurrently \"npm run server:ts\" \"npm run client:react\"",
-    "dev:legacy": "concurrently \"npm run server\" \"npm run client:legacy\"",
+    "dev:legacy": "echo '⚠️  旧版 UI 已废弃，请使用 npm run dev' && exit 1",
     "server": "node server/index.js",
-    "client:legacy": "npx http-server public -p 52310 -c-1",
+    "client:legacy": "echo '⚠️  旧版 UI 已废弃，请使用 npm run client:react' && exit 1",
     "server:ts": "npm run dev --workspace @storyweaver/server",
     "client:react": "npm run dev --workspace storyweaver-client",
     "build": "npm run build --workspace storyweaver-client",

@@ -31,8 +31,6 @@ const allowAllOrigins = process.env.ALLOW_ALL_ORIGINS === 'true';
 const defaultOrigins = [
   `http://localhost:${PORT}`,
   `http://127.0.0.1:${PORT}`,
-  'http://localhost:52310',
-  'http://127.0.0.1:52310',
   'http://localhost:52320',
   'http://127.0.0.1:52320'
 ];
@@ -69,11 +67,10 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/characters', characterRoutes);
 
 // 静态文件服务
-// 生产环境：优先使用构建后的 React 应用
-// 开发环境：回退到旧的 public 目录（兼容性）
+// 生产环境：使用构建后的 React 应用
+// 开发环境：代理到 Vite 开发服务器（新 React UI）
 const isProduction = process.env.NODE_ENV === 'production';
 const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
-const publicPath = path.join(__dirname, '..', '..', '..', 'public');
 const fs = require('fs');
 
 if (isProduction && fs.existsSync(clientDistPath)) {
@@ -83,9 +80,59 @@ if (isProduction && fs.existsSync(clientDistPath)) {
   app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
+  // eslint-disable-next-line no-console
+  console.log('✅ 生产环境：使用构建后的 React 应用');
 } else {
-  // 开发环境：使用旧的 public 目录（向后兼容）
-  app.use(express.static(publicPath));
+  // 开发环境：代理到 Vite 开发服务器（新 React UI）
+  let httpProxy: any = null;
+  try {
+    httpProxy = require('http-proxy-middleware');
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('❌ http-proxy-middleware 未安装！');
+    // eslint-disable-next-line no-console
+    console.error('   请运行: npm install http-proxy-middleware --workspace @storyweaver/server');
+    // eslint-disable-next-line no-console
+    console.error('   或者直接访问 Vite 开发服务器: http://localhost:52320');
+    process.exit(1);
+  }
+
+  const VITE_PORT = 52320;
+  const proxyMiddleware = httpProxy.createProxyMiddleware({
+    target: `http://localhost:${VITE_PORT}`,
+    changeOrigin: true,
+    ws: true, // 支持 WebSocket（HMR 需要）
+    logLevel: 'warn', // 显示警告以便调试
+    onError: (err: any, req: express.Request, res: express.Response) => {
+      // eslint-disable-next-line no-console
+      console.error(`❌ 代理到 Vite 服务器失败:`, err.message);
+      // eslint-disable-next-line no-console
+      console.warn(`   请确保 Vite 开发服务器正在运行: npm run client:react`);
+      if (!res.headersSent) {
+        res.status(503).json({
+          error: 'Vite 开发服务器不可用',
+          message: `无法连接到 http://localhost:${VITE_PORT}`,
+          suggestion: '请确保运行了 npm run dev 或 npm run client:react'
+        });
+      }
+    }
+  });
+  
+  app.use(
+    '*',
+    (req, res, next) => {
+      // 跳过 API 路由（已经在前面处理了）
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      // 代理到 Vite
+      return proxyMiddleware(req, res, next);
+    }
+  );
+  // eslint-disable-next-line no-console
+  console.log(`📡 开发环境：非 API 请求将代理到 Vite (http://localhost:${VITE_PORT})`);
+  // eslint-disable-next-line no-console
+  console.log(`   提示：如果 Vite 服务器未运行，请先启动: npm run client:react`);
 }
 
 // 健康检查
@@ -121,19 +168,55 @@ if (require.main === module) {
     console.log('   继续启动 TS 服务器...\n');
   }
 
+  // 添加未捕获错误处理，防止服务器崩溃
+  process.on('uncaughtException', (error) => {
+    // eslint-disable-next-line no-console
+    console.error('❌ 未捕获的异常:', error);
+    // 不要立即退出，让服务器继续运行（开发环境）
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    // eslint-disable-next-line no-console
+    console.error('❌ 未处理的 Promise 拒绝:', reason);
+    // 开发环境不退出，生产环境退出
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  });
+
   // 运行数据库迁移
   runMigrations()
     .then(() => {
-      app.listen(PORT, () => {
+      const server = app.listen(PORT, () => {
         // eslint-disable-next-line no-console
         console.log(`🚀 StoryWeaver TS 服务器运行在 http://localhost:${PORT}`);
         // eslint-disable-next-line no-console
         console.log(`✅ 所有路由已 TS 化，使用 Drizzle ORM`);
         
-        // 启动 Job Queue Worker
-        startWorker();
-        // eslint-disable-next-line no-console
-        console.log(`📦 Job Queue Worker 已启动`);
+        // 启动 Job Queue Worker（不阻塞服务器启动）
+        try {
+          startWorker();
+          // eslint-disable-next-line no-console
+          console.log(`📦 Job Queue Worker 已启动`);
+        } catch (workerError) {
+          // eslint-disable-next-line no-console
+          console.error('⚠️  Worker 启动失败（服务器继续运行）:', workerError);
+        }
+      });
+
+      // 添加服务器错误处理
+      server.on('error', (error: any) => {
+        if (error.code === 'EADDRINUSE') {
+          // eslint-disable-next-line no-console
+          console.error(`❌ 端口 ${PORT} 已被占用，请检查是否有其他进程在使用该端口`);
+        } else {
+          // eslint-disable-next-line no-console
+          console.error('❌ 服务器错误:', error);
+        }
+        process.exit(1);
       });
     })
     .catch((error) => {

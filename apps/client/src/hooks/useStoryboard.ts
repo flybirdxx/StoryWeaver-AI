@@ -29,26 +29,56 @@ export function useStoryboard(): UseStoryboardReturn {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingPanelId, setGeneratingPanelId] = useState<string | number | null>(null);
 
+  // 只在组件挂载时加载一次，避免点击时重新加载覆盖已生成的图像
   const loadPanels = useCallback(() => {
-    const storyboardData = (window as any).storyboardData;
-    if (storyboardData && storyboardData.panels) {
-      const loadedPanels = storyboardData.panels;
-      setPanels(loadedPanels);
-      // 如果当前没有选中分镜，自动选中第一个
-      if (loadedPanels.length > 0 && !selectedPanelId) {
-        setSelectedPanelId(loadedPanels[0].id);
+    try {
+      const storyboardData = (window as any).storyboardData;
+      if (storyboardData && storyboardData.panels && Array.isArray(storyboardData.panels)) {
+        const loadedPanels = storyboardData.panels;
+        
+        // 智能合并：保留 store 中已有的图像数据
+        const currentPanels = useProjectStore.getState().panels;
+        const mergedPanels = loadedPanels.map((loadedPanel: Panel) => {
+          const existingPanel = currentPanels.find(p => p.id === loadedPanel.id);
+          // 如果 store 中的面板有图像，保留它（可能是刚生成的）
+          if (existingPanel?.imageUrl) {
+            return {
+              ...loadedPanel,
+              imageUrl: existingPanel.imageUrl,
+              imageIsUrl: existingPanel.imageIsUrl,
+              status: existingPanel.status || loadedPanel.status
+            };
+          }
+          return loadedPanel;
+        });
+        
+        setPanels(mergedPanels);
+        // 如果当前没有选中分镜，自动选中第一个
+        const currentSelectedId = useProjectStore.getState().selectedPanelId;
+        if (mergedPanels.length > 0 && !currentSelectedId) {
+          setSelectedPanelId(mergedPanels[0].id);
+        }
+        console.log('已加载分镜数据:', mergedPanels.length, '个分镜');
+      } else {
+        console.log('未找到分镜数据，请先在剧本中心分析剧本');
+        // 只有在确实没有数据时才清空，避免覆盖正在生成的数据
+        const currentPanels = useProjectStore.getState().panels;
+        if (currentPanels.length === 0) {
+          setPanels([]);
+          setSelectedPanelId(null);
+        }
       }
-      console.log('已加载分镜数据:', loadedPanels.length, '个分镜');
-    } else {
-      console.log('未找到分镜数据，请先在剧本中心分析剧本');
-      setPanels([]);
-      setSelectedPanelId(null);
+    } catch (error) {
+      console.error('[useStoryboard] 加载分镜数据失败:', error);
+      // 出错时保持当前状态，不覆盖已有数据
     }
-  }, [selectedPanelId, setPanels, setSelectedPanelId]);
+  }, [setPanels, setSelectedPanelId]);
 
+  // 只在组件挂载时加载一次，避免重复加载覆盖数据
   useEffect(() => {
     loadPanels();
-  }, [loadPanels]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 空依赖数组，只在挂载时执行一次
 
   const selectPanel = useCallback((id: string | number) => {
     setSelectedPanelId(id);
@@ -56,14 +86,25 @@ export function useStoryboard(): UseStoryboardReturn {
 
   // updatePanelImage 现在直接使用 Store 的方法
   const handleUpdatePanelImage = useCallback((id: string | number, imageUrl: string, isUrl = false) => {
+    // 先更新 Store
     updatePanelImage(id, imageUrl, isUrl);
+    
     // 同步更新全局数据（保持向后兼容）
     const storyboardData = (window as any).storyboardData;
     if (storyboardData && storyboardData.panels) {
       const updated = storyboardData.panels.map((panel: Panel) =>
-        panel.id === id ? { ...panel, imageUrl, imageIsUrl: isUrl } : panel
+        panel.id === id ? { ...panel, imageUrl, imageIsUrl: isUrl, status: 'completed' } : panel
       );
       storyboardData.panels = updated;
+      console.log('[useStoryboard] 已同步更新 window.storyboardData，面板 ID:', id);
+    } else {
+      // 如果 storyboardData 不存在，从 store 创建它
+      const currentPanels = useProjectStore.getState().panels;
+      (window as any).storyboardData = {
+        panels: currentPanels,
+        timestamp: new Date().toISOString()
+      };
+      console.log('[useStoryboard] 创建了新的 window.storyboardData');
     }
   }, [updatePanelImage]);
 

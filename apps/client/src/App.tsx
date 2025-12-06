@@ -5,6 +5,7 @@ import { ScriptPage } from './pages/ScriptPage';
 import { StoryboardPage } from './pages/StoryboardPage';
 import { CharactersPage } from './pages/CharactersPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const navItems = [
   { path: '/', label: '概览', icon: '📊' },
@@ -52,13 +53,15 @@ export const App: React.FC = () => {
 
       {/* Main content */}
       <main className="flex-1 p-4 md:p-8">
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/script" element={<ScriptPage />} />
-          <Route path="/storyboard" element={<StoryboardPage />} />
-          <Route path="/characters" element={<CharactersPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/script" element={<ScriptPage />} />
+            <Route path="/storyboard" element={<StoryboardPage />} />
+            <Route path="/characters" element={<CharactersPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   );

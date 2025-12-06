@@ -35,12 +35,36 @@ export function useCharacters(): UseCharactersReturn {
     refetch: refetchCharacters,
   } = useApiQuery<Character[]>(['characters'], '/characters');
 
-  // 同步查询结果到 Store
+  // 同步查询结果到 Store（智能合并，避免覆盖本地更新）
   useEffect(() => {
     if (charactersData) {
-      setCharacters(charactersData);
+      console.log('[useCharacters] 同步查询结果到 Store:', {
+        count: charactersData.length,
+        characters: charactersData.map(c => ({
+          id: c.id,
+          name: c.name,
+          hasImageUrl: !!c.imageUrl,
+          imageUrlLength: c.imageUrl?.length
+        }))
+      });
+      
+      // 获取当前 store 中的角色
+      const currentCharacters = useCharacterStore.getState().characters;
+      
+      // 智能合并：如果 store 中的角色有 imageUrl 但查询结果中没有，保留 store 中的
+      const merged = charactersData.map(serverChar => {
+        const localChar = currentCharacters.find(c => c.id === serverChar.id);
+        // 如果本地有 imageUrl 但服务器没有，保留本地的（可能是刚生成的）
+        if (localChar?.imageUrl && !serverChar.imageUrl) {
+          console.log(`[useCharacters] 保留本地 imageUrl 给角色 ${serverChar.name}`);
+          return { ...serverChar, imageUrl: localChar.imageUrl, imageIsUrl: localChar.imageIsUrl };
+        }
+        return serverChar;
+      });
+      
+      setCharacters(merged);
       // 保存到全局变量（供其他模块使用，向后兼容）
-      (window as any).charactersData = charactersData;
+      (window as any).charactersData = merged;
     }
   }, [charactersData, setCharacters]);
 
@@ -85,13 +109,32 @@ export function useCharacters(): UseCharactersReturn {
     (variables) => `/characters/${variables.id}`,
     'PUT',
     {
+      // 注意：invalidateQueries 会在 onSuccess 之后触发，可能会覆盖 store 更新
+      // 所以我们延迟 invalidate，或者确保 onSuccess 中的更新在 invalidate 之前完成
       invalidateQueries: [['characters']],
       onSuccess: (data, variables) => {
+        console.log('[updateMutation] onSuccess 回调:', {
+          id: variables.id,
+          hasImageUrl: !!data.imageUrl,
+          imageUrlLength: data.imageUrl?.length,
+          fullData: data
+        });
+        // 确保使用服务器返回的最新数据更新 store
         updateCharacterStore(variables.id, data);
         const updated = useCharacterStore.getState().characters;
         (window as any).charactersData = updated;
+        console.log('[updateMutation] Store 已更新，当前角色数:', updated.length);
+        // 查找更新后的角色
+        const updatedChar = updated.find(c => c.id === variables.id);
+        console.log('[updateMutation] 更新后的角色:', {
+          id: updatedChar?.id,
+          name: updatedChar?.name,
+          hasImageUrl: !!updatedChar?.imageUrl,
+          imageUrlLength: updatedChar?.imageUrl?.length
+        });
       },
       onError: (err) => {
+        console.error('[updateMutation] onError:', err);
         setLocalError(err.message || '更新角色失败');
       },
     }
@@ -100,12 +143,31 @@ export function useCharacters(): UseCharactersReturn {
   const updateCharacter = useCallback(
     async (id: string, data: Partial<Character>) => {
       try {
-        await updateMutation.mutateAsync({ id, data });
+        // 先乐观更新本地状态（立即显示）
+        console.log('[updateCharacter] 乐观更新本地状态:', { id, data });
+        updateCharacterStore(id, data);
+        
+        // 然后同步到服务器
+        const result = await updateMutation.mutateAsync({ id, data });
+        
+        // 如果服务器返回了完整数据，使用服务器数据（确保一致性）
+        if (result) {
+          console.log('[updateCharacter] 使用服务器返回的数据:', result);
+          updateCharacterStore(id, result);
+        } else {
+          console.log('[updateCharacter] 服务器未返回完整数据，保持乐观更新');
+        }
+        
+        // 不立即刷新，让 mutation 的 invalidateQueries 自动处理
+        // 这样可以避免覆盖刚刚更新的数据
       } catch (err) {
+        // 如果更新失败，从服务器重新获取数据（回滚）
+        console.error('[updateCharacter] 更新失败，回滚:', err);
+        await refetchCharacters();
         throw err;
       }
     },
-    [updateMutation]
+    [updateMutation, updateCharacterStore, refetchCharacters]
   );
 
   // 使用 TanStack Query Mutation 删除角色
@@ -161,24 +223,21 @@ export function useCharacters(): UseCharactersReturn {
       return;
     }
 
-    // 结构化的 Character Sheet 提示词（按照优化建议）
-    // Technical Specs
-    const technicalSpecs = 'Character Reference Sheet, Concept Art, High Quality, Neutral Lighting, White Background';
+    // 优化：Character Reference Sheet 三视图生成提示词
+    // 核心指令：明确要求三视图结构
+    const layoutInstructions = '(Character Reference Sheet:1.5), (Three views: Front view, Side view, Back view), full body standing pose, neutral white background, studio lighting';
     
-    // Layout Control
-    const layoutControl = 'Three views: Front view on left, Side view in center, Back view on right. Full body shot, standing pose, continuous consistency';
+    // 角色描述：整合用户输入
+    const characterDescription = `Character Design: ${promptParts.join('. ')}`;
     
-    // Character Description
-    const characterDescription = `[${name}]${tags.length ? `, Traits: ${tags.join(', ')}` : ''}${description ? `, ${description}` : ''}${basePrompt ? `, ${basePrompt}` : ''}`;
+    // 风格控制：保持清晰、扁平、易于参考
+    const styleControl = 'Concept Art style, flat colors, clean lines, high detail, masterpiece, best quality';
     
-    // Style
-    const style = 'Japanese cel-shading style, clear lines, vibrant colors, professional character design';
-    
-    // Negative Prompts (防止生成大头照、裁剪等)
-    const negativePrompts = 'cropping, close-up, portrait, headshot, partial body, cut off, incomplete';
+    // 负面提示词：防止大头照、裁剪、透视变形
+    const negativePrompts = 'cropping, close-up, portrait, headshot, partial body, cut off, incomplete, perspective distortion, dynamic pose, shadow, blur, noisy';
     
     // 组合完整提示词
-    const threeViewPrompt = `${technicalSpecs}. ${layoutControl}. ${characterDescription}. ${style}. Negative: ${negativePrompts}`;
+    const threeViewPrompt = `${layoutInstructions}. ${characterDescription}. ${styleControl}. Negative: ${negativePrompts}`;
 
     try {
       const response = await apiRequest<{ imageUrl: string; isUrl?: boolean }>('/image/generate', {
@@ -198,12 +257,40 @@ export function useCharacters(): UseCharactersReturn {
 
       const { imageUrl, isUrl } = response.data;
 
-      // 如果返回的是 base64 数据 URL，检查大小
-      // 如果过大（> 5MB），建议使用 URL 而不是 base64
-      if (!isUrl && imageUrl && imageUrl.startsWith('data:')) {
-        const base64Data = imageUrl.split(',')[1] || '';
-        const sizeInBytes = (base64Data.length * 3) / 4; // base64 编码大小估算
+      console.log('[角色图像生成] 收到响应:', {
+        hasImageUrl: !!imageUrl,
+        isUrl,
+        imageUrlLength: imageUrl?.length,
+        imageUrlPrefix: imageUrl?.substring(0, 50)
+      });
+
+      if (!imageUrl) {
+        console.error('[角色图像生成] 响应中没有 imageUrl');
+        alert('生成角色参考图失败：服务器未返回图像数据');
+        return;
+      }
+
+      // 如果返回的是 base64 数据 URL，检查格式
+      let finalImageUrl = imageUrl;
+      if (!isUrl && imageUrl) {
+        // 确保 base64 数据有正确的 data URL 前缀
+        if (!imageUrl.startsWith('data:')) {
+          // 如果返回的是纯 base64，添加前缀
+          if (imageUrl.includes('base64')) {
+            // 已经是 data URL 格式，但可能缺少 data: 前缀
+            finalImageUrl = imageUrl.startsWith('data:') ? imageUrl : `data:image/jpeg;base64,${imageUrl}`;
+          } else {
+            // 纯 base64 字符串，添加完整前缀
+            finalImageUrl = `data:image/jpeg;base64,${imageUrl}`;
+          }
+        }
+        
+        // 检查大小
+        const base64Data = finalImageUrl.split(',')[1] || '';
+        const sizeInBytes = (base64Data.length * 3) / 4;
         const sizeInMB = sizeInBytes / (1024 * 1024);
+        
+        console.log(`[角色图像生成] 图像大小: ${sizeInMB.toFixed(2)}MB`);
         
         if (sizeInMB > 5) {
           console.warn(`角色图像较大 (${sizeInMB.toFixed(2)}MB)，建议保存为文件而不是 base64`);
@@ -211,10 +298,13 @@ export function useCharacters(): UseCharactersReturn {
       }
 
       // 更新角色图像
+      console.log('[角色图像生成] 更新角色数据，ID:', id);
       await updateCharacter(id, {
-        imageUrl,
+        imageUrl: finalImageUrl,
         imageIsUrl: isUrl || false
       });
+      
+      console.log('[角色图像生成] 角色数据已更新');
     } catch (err: any) {
       console.error('生成角色图像失败:', err);
       alert(`生成角色参考图失败: ${err.message}`);

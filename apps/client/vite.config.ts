@@ -15,6 +15,8 @@ export default defineConfig({
   },
   server: {
     port: 52320,
+    host: '0.0.0.0', // 监听所有网络接口，包括 IPv4 和 IPv6
+    strictPort: false, // 如果端口被占用，自动尝试下一个端口
     proxy: {
       '/api': {
         target: 'http://localhost:52301',

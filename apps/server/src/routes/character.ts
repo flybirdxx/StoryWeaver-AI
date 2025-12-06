@@ -28,6 +28,8 @@ const mapCharacterRow = (row: any) => {
         ...parsed,
         id: row.id,
         tags: Array.isArray(parsed.tags) ? parsed.tags : parseJson(row.tags, []),
+        // 修复：优先使用数据库字段中的 imageUrl（更可靠），如果数据库中没有则使用 data 中的
+        imageUrl: row.imageUrl !== null && row.imageUrl !== undefined ? row.imageUrl : (parsed.imageUrl || null),
         imageIsUrl: Boolean(parsed.imageIsUrl ?? row.imageIsUrl)
       };
     } catch {
@@ -41,7 +43,8 @@ const mapCharacterRow = (row: any) => {
     description: row.description || '',
     tags: parseJson(row.tags, []),
     basePrompt: row.basePrompt || '',
-    imageUrl: row.imageUrl || null,
+    // 修复：正确处理 imageUrl，空字符串应该保留（可能是有效的 base64）
+    imageUrl: row.imageUrl !== null && row.imageUrl !== undefined ? row.imageUrl : null,
     imageIsUrl: Boolean(row.imageIsUrl),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -192,23 +195,50 @@ router.put('/:id', async (req: Request, res: Response) => {
   const existing = mapCharacterRow(row)!;
   const { name, description, tags, basePrompt, imageUrl, imageIsUrl } = req.body ?? {};
 
+  // 调试日志
+  console.log('[PUT /characters/:id] 收到更新请求:', {
+    id: req.params.id,
+    hasImageUrl: imageUrl !== undefined,
+    imageUrlType: typeof imageUrl,
+    imageUrlLength: imageUrl?.length,
+    imageIsUrl
+  });
+
   const updatedCharacter = {
     id: existing.id,
     name: name !== undefined ? String(name).trim() : existing.name,
     description: description !== undefined ? String(description || '').trim() : existing.description,
     tags: Array.isArray(tags) ? tags : existing.tags || [],
     basePrompt: basePrompt !== undefined ? String(basePrompt || '').trim() : existing.basePrompt || '',
-    imageUrl: imageUrl !== undefined ? imageUrl : existing.imageUrl || null,
+    // 修复：正确处理 imageUrl，包括空字符串和 null
+    imageUrl: imageUrl !== undefined ? (imageUrl || null) : existing.imageUrl || null,
     imageIsUrl: imageIsUrl !== undefined ? Boolean(imageIsUrl) : existing.imageIsUrl ?? false,
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString()
   };
 
+  console.log('[PUT /characters/:id] 准备保存:', {
+    id: updatedCharacter.id,
+    hasImageUrl: !!updatedCharacter.imageUrl,
+    imageUrlLength: updatedCharacter.imageUrl?.length,
+    imageIsUrl: updatedCharacter.imageIsUrl
+  });
+
   await updateCharacter(updatedCharacter);
+
+  // 重新从数据库读取，确保返回最新数据
+  const updatedRow = await getCharacterById(req.params.id);
+  const finalCharacter = mapCharacterRow(updatedRow);
+
+  console.log('[PUT /characters/:id] 保存后读取:', {
+    id: finalCharacter?.id,
+    hasImageUrl: !!finalCharacter?.imageUrl,
+    imageUrlLength: finalCharacter?.imageUrl?.length
+  });
 
   res.json({
     success: true,
-    data: updatedCharacter
+    data: finalCharacter
   });
 });
 
