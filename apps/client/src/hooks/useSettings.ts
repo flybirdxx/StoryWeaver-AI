@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../lib/api';
+import { toast } from '../lib/toast';
 import { useSettingsStore } from '../stores/useSettingsStore';
 
 interface UseSettingsReturn {
@@ -44,7 +45,7 @@ export function useSettings(): UseSettingsReturn {
     const apiKey = geminiApiKey.trim();
     
     if (!apiKey) {
-      alert('请先输入 API Key');
+      toast.warning('请先输入 API Key');
       return;
     }
 
@@ -83,7 +84,7 @@ export function useSettings(): UseSettingsReturn {
     const apiKey = geminiApiKey.trim();
     
     if (!apiKey) {
-      alert('请输入 API Key');
+      toast.warning('请输入 API Key');
       return;
     }
 
@@ -104,7 +105,7 @@ export function useSettings(): UseSettingsReturn {
     const apiKey = deepseekApiKey.trim();
     
     if (!apiKey) {
-      alert('请输入 DeepSeek API Key');
+      toast.warning('请输入 DeepSeek API Key');
       return;
     }
 

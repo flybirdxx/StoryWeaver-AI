@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCharacters } from '../hooks/useCharacters';
 import { CharacterCard } from '../features/characters/CharacterCard';
+import { CharacterCardSkeleton } from '../components/ui/Skeleton';
+import { GenerationProgress } from '../components/ui/ProgressBar';
+import { toast } from '../lib/toast';
 import type { Character } from '@storyweaver/shared';
 
 export const CharactersPage: React.FC = () => {
@@ -48,7 +51,7 @@ export const CharactersPage: React.FC = () => {
       setShowModal(false);
       setFormData({ name: '', description: '', tags: '', basePrompt: '' });
     } catch (err: any) {
-      alert(`创建角色失败: ${err.message}`);
+      toast.error('创建角色失败', err.message);
     }
   };
 
@@ -120,8 +123,10 @@ export const CharactersPage: React.FC = () => {
       )}
 
       {isLoading ? (
-        <div className="text-center py-12 text-stone-400">
-          <p>加载中...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <CharacterCardSkeleton key={i} />
+          ))}
         </div>
       ) : characters.length === 0 ? (
         <div className="col-span-full text-center py-12 text-stone-400 dark:text-stone-500">

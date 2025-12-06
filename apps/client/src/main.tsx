@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'sonner';
 import { App } from './App';
 import './index.css';
 import { logDiagnostics } from './lib/api-diagnostic';
@@ -29,6 +30,18 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <App />
+        <Toaster 
+          position="top-right" 
+          richColors 
+          closeButton
+          toastOptions={{
+            classNames: {
+              toast: 'dark:bg-stone-800 dark:text-stone-100',
+              title: 'dark:text-stone-100',
+              description: 'dark:text-stone-400',
+            },
+          }}
+        />
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>

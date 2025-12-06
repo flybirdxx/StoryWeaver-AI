@@ -29,6 +29,12 @@ class GeminiService {
   async analyzeScript(script, characters = []) {
     const systemPrompt = this.buildAnalysisPrompt(characters);
     
+    // 检测剧本语言：如果包含中文字符，则要求对白使用中文
+    const hasChinese = /[\u4e00-\u9fa5]/.test(script);
+    const languageRequirement = hasChinese 
+      ? '\n**重要语言要求**：\n- 如果剧本是中文的，所有对白（dialogue）必须使用纯中文，不要混入英文单词或短语。\n- 除非剧本本身包含英文对话，否则对白应完全使用中文。\n- 旁白、音效描述也应使用中文。'
+      : '\n**语言要求**：\n- 对白（dialogue）应使用与剧本相同的语言。';
+    
     const prompt = `${systemPrompt}
 
 请分析以下剧本，并生成结构化的分镜数据：
@@ -47,7 +53,7 @@ ${script}
   - id: 序号
   - type: 镜头类型 (Close-up, Wide Shot, Mid Shot, Action, etc.)
   - prompt: 图像生成提示词
-  - dialogue: 对话内容（如果有）
+  - dialogue: 对话内容（如果有）${languageRequirement}
   - sfx: 音效文字（如果有）
   - duration: 建议时长（秒）`;
 
@@ -127,17 +133,20 @@ ${script}
    * @param {string} prompt - 图像生成提示词
    * @param {string} style - 艺术风格
    * @param {Object} characterRefs - 角色参考信息
-   * @param {Object} options - 生成选项 (aspectRatio, imageSize)
+   * @param {Object} options - 生成选项 (aspectRatio, imageSize, panelContext)
    * @returns {Promise<Object>} 包含 imageUrl 和 metadata 的对象
    */
   async generateImage(prompt, style = 'cel-shading', characterRefs = {}, options = {}) {
     console.log('[GeminiService] 生成图像（电影模式），选项:', {
       aspectRatio: options.aspectRatio,
       imageSize: options.imageSize,
+      panelContext: options.panelContext,
       allOptions: options
     });
     
-    const enhancedPrompt = this.buildImagePrompt(prompt, style, characterRefs);
+    // 从 options 中提取 panelContext，如果没有则使用空对象
+    const panelContext = options.panelContext || {};
+    const enhancedPrompt = this.buildImagePrompt(prompt, style, characterRefs, panelContext);
     
     // 直接使用 REST API 调用 v1beta 端点
     return await this.generateImageViaREST(enhancedPrompt, options);
@@ -331,6 +340,7 @@ ${script}
 2. 为每个关键镜头确定合适的镜头类型（特写、中景、全景、动作等）
 3. 生成详细的图像生成提示词，包含视觉元素、构图、光影、情绪等
 4. 识别对话和音效文字
+5. **语言一致性要求**：如果剧本是中文的，所有对白（dialogue）必须使用纯中文，不要混入英文单词或短语。除非剧本本身包含英文对话，否则对白应完全使用中文。
 
 `;
 
@@ -345,40 +355,73 @@ ${script}
   }
 
   /**
-   * 构建图像生成提示词（电影模式）
+   * 构建图像生成提示词（增强版）
    * @param {string} basePrompt - 基础提示词
    * @param {string} style - 艺术风格
-   * @param {Object} characterRefs - 角色参考信息
+   * @param {Object} characterRefs - 角色参考信息 { 'Name': 'Description' }
+   * @param {Object} panelContext - 分镜上下文 (e.g. { type: 'Close-up', weather: 'Rain' })
    */
-  buildImagePrompt(basePrompt, style, characterRefs) {
+  buildImagePrompt(basePrompt, style, characterRefs, panelContext = {}) {
+    // 1. 风格定义 (Style Anchor)
     const stylePrompts = {
-      'cel-shading': 'Japanese cel-shaded animation style, clean distinct outlines, vivid deep colors,',
-      'noir': 'American comic book noir style, high contrast black and white, strong shadows,',
-      'ghibli': 'Studio Ghibli watercolor style, soft lighting, warm tones,',
-      'realism': 'Cinematic photography style, realistic rendering, natural lighting,'
+      'cel-shading': 'anime coloring, cel shaded, flat color, thick lines, high contrast, vivid colors,',
+      'noir': 'graphic novel style, black and white, ink lines, chiaroscuro lighting, sin city style,',
+      'ghibli': 'studio ghibli style, watercolor texture, soft lighting, detailed background, painterly,',
+      'realism': 'cinematic shot, 35mm film, bokeh, realistic texture, ray tracing,'
     };
-
     const styleText = stylePrompts[style] || stylePrompts['cel-shading'];
-    
-    // 电影模式：强调电影感、镜头语言、景深、动态构图
-    const modeEnhancement = 'cinematic composition, professional camera work, film-grade lighting, dynamic depth of field,';
-    
-    // 明确指示这是图像生成任务，避免模型返回文本描述
-    // 使用英文提示词，因为 Gemini 图像生成模型对英文提示词理解更好
-    let enhancedPrompt = `Generate an image: ${styleText} ${modeEnhancement} ${basePrompt}`;
 
-    // 添加角色一致性提示
+    // 2. 镜头与构图 (Camera & Composition)
+    // 根据 panel.type 自动增强镜头语言
+    let cameraInstruction = '';
+    if (panelContext.type === 'Close-up' || panelContext.type === '特写') {
+      cameraInstruction = 'close-up shot, focus on face, detailed eyes, emotional expression, blurred background,';
+    } else if (panelContext.type === 'Wide Shot' || panelContext.type === '全景') {
+      cameraInstruction = 'wide angle shot, environmental view, full body, establishing shot,';
+    } else if (panelContext.type === 'Mid Shot' || panelContext.type === '中景') {
+      cameraInstruction = 'medium shot, waist-up framing, balanced composition,';
+    } else if (panelContext.type === 'Low Angle' || panelContext.type === '低角度') {
+      cameraInstruction = 'low angle view, looking up, imposing perspective,';
+    } else if (panelContext.type === 'Action' || panelContext.type === '动作') {
+      cameraInstruction = 'dynamic action shot, motion blur, dramatic angle,';
+    } else {
+      // 默认：电影感构图
+      cameraInstruction = 'cinematic composition, professional camera work, film-grade lighting, dynamic depth of field,';
+    }
+    
+    // 3. 角色注入 (Character Injection)
+    // 智能替换：如果 Prompt 中提到了角色名，将其替换为详细描述
+    let finalPrompt = basePrompt;
     if (Object.keys(characterRefs).length > 0) {
-      enhancedPrompt += '. Maintain character consistency:';
-      Object.entries(characterRefs).forEach(([name, ref]) => {
-        enhancedPrompt += ` ${name}(${ref})`;
+      Object.entries(characterRefs).forEach(([name, desc]) => {
+        // 简单的正则替换，确保不重复添加
+        const regex = new RegExp(`\\b${name}\\b`, 'gi');
+        if (regex.test(finalPrompt)) {
+          finalPrompt = finalPrompt.replace(regex, `${name} (${desc})`);
+        } else {
+          // 如果 Prompt 中没有提到角色名，在开头添加角色描述
+          // 但只在第一个角色时添加，避免重复
+          if (finalPrompt === basePrompt && Object.keys(characterRefs).indexOf(name) === 0) {
+            finalPrompt = `${name} (${desc}), ${finalPrompt}`;
+          }
+        }
       });
     }
 
-    // 在末尾再次强调这是图像生成任务
-    enhancedPrompt += '. Generate the image directly, do not return text descriptions or prompts.';
+    // 4. 负面提示词 (虽然 Gemini API 通常不支持显式 Negative Prompt 参数，但可以写在 Prompt 后)
+    const negative = 'BAD ANATOMY, LOW QUALITY, TEXT, WATERMARK, BLURRY, DISTORTED FACE, MUTILATED FINGERS';
 
-    return enhancedPrompt;
+    // 5. 组合
+    const enhancedPrompt = `
+      [Art Style]: ${styleText}
+      [Camera]: ${cameraInstruction}
+      [Scene Description]: ${finalPrompt}
+      [Quality Tags]: masterpiece, best quality, 8k, highly detailed.
+      [Negative Constraints]: ${negative}
+    `.trim();
+
+    // 在末尾再次强调这是图像生成任务
+    return `${enhancedPrompt}. Generate the image directly, do not return text descriptions or prompts.`;
   }
 }
 

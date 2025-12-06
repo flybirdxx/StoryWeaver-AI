@@ -71,7 +71,7 @@ class DeepseekService {
   }
 
   buildAnalysisPrompt(characters) {
-    let prompt = `你是影视导演 + 视觉叙事策划师，擅长将剧本拆解为电影分镜。参考 DeepSeek V3.2 的“思考 + 工具”能力，请输出**结构化 JSON 对象**。
+    let prompt = `你是影视导演 + 视觉叙事策划师，擅长将剧本拆解为电影分镜。参考 DeepSeek V3.2 的"思考 + 工具"能力，请输出**结构化 JSON 对象**。
 
 输出要求：
 - 深入理解主题、角色关系、情绪基调
@@ -79,6 +79,7 @@ class DeepseekService {
 - 至少生成 8 个分镜，涵盖不同镜头类型
 - 每个分镜需包含 type、prompt、dialogue、sfx、duration
 - prompt 面向图像模型（Gemini 3 Pro 图像预览版），强调光影/镜头感/构图
+- **语言一致性要求**：如果剧本是中文的，所有对白（dialogue）必须使用纯中文，不要混入英文单词或短语。除非剧本本身包含英文对话，否则对白应完全使用中文。
 
 `;
 
@@ -94,6 +95,12 @@ class DeepseekService {
   }
 
   buildUserPrompt(script) {
+    // 检测剧本语言：如果包含中文字符，则要求对白使用中文
+    const hasChinese = /[\u4e00-\u9fa5]/.test(script);
+    const languageRequirement = hasChinese 
+      ? '\n**重要语言要求**：\n- 如果剧本是中文的，所有对白（dialogue）必须使用纯中文，不要混入英文单词或短语。\n- 除非剧本本身包含英文对话，否则对白应完全使用中文。\n- 旁白、音效描述也应使用中文。'
+      : '\n**语言要求**：\n- 对白（dialogue）应使用与剧本相同的语言。';
+
     return `下面是需要分析的完整剧本，请你**只返回一个 JSON 对象**，不要输出任何多余说明文字：
 
 输出 JSON 结构必须严格为：
@@ -128,7 +135,7 @@ class DeepseekService {
 要求：
 - 至少生成 8 个分镜（panels 数组长度 >= 8），覆盖重要情节转折。
 - characters 至少包含出场的主要角色，每个角色给出简短描述和 basePrompt。
-- 确保返回的内容是合法 JSON，可以直接被 JSON.parse 解析。
+- 确保返回的内容是合法 JSON，可以直接被 JSON.parse 解析。${languageRequirement}
 
 待分析剧本如下：
 """

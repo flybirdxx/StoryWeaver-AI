@@ -5,6 +5,15 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { Panel, PanelStatus, Project } from '@storyweaver/shared';
 
+// 分镜版本历史
+export interface PanelVersion {
+  id: string;
+  imageUrl: string;
+  imageIsUrl: boolean;
+  timestamp: string;
+  isCurrent: boolean;
+}
+
 export interface ProjectState {
   // 项目列表管理
   projects: Project[];
@@ -14,6 +23,9 @@ export interface ProjectState {
   // 分镜管理
   panels: Panel[];
   selectedPanelId: string | number | null;
+  
+  // 分镜版本历史：panelId -> versions[]
+  panelVersions: Record<string, PanelVersion[]>;
   
   // 项目操作方法
   setProjects: (projects: Project[]) => void;
@@ -31,6 +43,10 @@ export interface ProjectState {
   addPanel: (panel: Panel) => void;
   removePanel: (id: string | number) => void;
   reorderPanels: (startIndex: number, endIndex: number) => void;
+  
+  // 版本管理方法
+  getPanelVersions: (id: string | number) => PanelVersion[];
+  restorePanelVersion: (panelId: string | number, versionId: string) => void;
   
   // Computed selectors (通过函数访问，避免在 store 中存储)
 }
@@ -81,7 +97,7 @@ export const selectPanelCompletionStats = (state: ProjectState) => {
   const total = panels.length;
   const completed = panels.filter(p => p.status === 'completed').length;
   const generating = panels.filter(p => p.status === 'generating').length;
-  const pending = panels.filter(p => !p.status || p.status === 'pending').length;
+  const pending = panels.filter(p => !p.status || p.status === 'draft' || p.status === 'prompted').length;
   
   return {
     total,
@@ -93,13 +109,14 @@ export const selectPanelCompletionStats = (state: ProjectState) => {
 };
 
 export const useProjectStore = create<ProjectState>()(
-  immer((set) => ({
+  immer((set, get) => ({
     // 初始状态
     projects: [],
     currentProject: null,
     currentProjectId: null,
     panels: [],
     selectedPanelId: null,
+    panelVersions: {} as Record<string, PanelVersion[]>,
     
     // 项目操作方法
     setProjects: (projects: Project[]) => set({ projects }),
@@ -180,9 +197,74 @@ export const useProjectStore = create<ProjectState>()(
       set((state) => {
         const panel = state.panels.find((p: Panel) => p.id === id);
         if (panel) {
+          // 保存当前版本到历史（如果存在）
+          if (panel.imageUrl) {
+            const panelIdKey = String(id);
+            const versions = state.panelVersions[panelIdKey] || [];
+            const newVersion: PanelVersion = {
+              id: `v${Date.now()}`,
+              imageUrl: panel.imageUrl,
+              imageIsUrl: panel.imageIsUrl || false,
+              timestamp: new Date().toISOString(),
+              isCurrent: false
+            };
+            // 将之前的版本标记为非当前
+            versions.forEach(v => v.isCurrent = false);
+            versions.push(newVersion);
+            // 只保留最近 10 个版本
+            if (versions.length > 10) {
+              versions.shift();
+            }
+            state.panelVersions[panelIdKey] = versions;
+          }
+          
+          // 更新当前图像
           panel.imageUrl = imageUrl;
           panel.imageIsUrl = isUrl;
           panel.status = 'completed';
+        }
+      }),
+    getPanelVersions: (id: string | number) => {
+      const state = get();
+      const panelIdKey = String(id);
+      return state.panelVersions[panelIdKey] || [];
+    },
+    restorePanelVersion: (panelId: string | number, versionId: string) =>
+      set((state) => {
+        const panelIdKey = String(panelId);
+        const versions = state.panelVersions[panelIdKey];
+        if (!versions) return;
+        
+        const version = versions.find(v => v.id === versionId);
+        if (!version) return;
+        
+        const panel = state.panels.find((p: Panel) => p.id === panelId);
+        if (panel) {
+          // 保存当前版本（如果存在且不是要恢复的版本）
+          if (panel.imageUrl && panel.imageUrl !== version.imageUrl) {
+            const currentVersion: PanelVersion = {
+              id: `v${Date.now()}`,
+              imageUrl: panel.imageUrl,
+              imageIsUrl: panel.imageIsUrl || false,
+              timestamp: new Date().toISOString(),
+              isCurrent: false
+            };
+            versions.forEach(v => v.isCurrent = false);
+            versions.push(currentVersion);
+            if (versions.length > 10) {
+              versions.shift();
+            }
+          }
+          
+          // 恢复指定版本
+          panel.imageUrl = version.imageUrl;
+          panel.imageIsUrl = version.imageIsUrl;
+          panel.status = 'completed';
+          
+          // 更新版本标记
+          versions.forEach(v => {
+            v.isCurrent = v.id === versionId;
+          });
         }
       }),
     setCurrentProjectId: (id: string | null) => {

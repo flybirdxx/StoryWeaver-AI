@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from '../../lib/toast';
 
 interface QuickAction {
   id: string;
@@ -41,7 +42,7 @@ export const QuickActions: React.FC = () => {
       color: 'purple',
       onClick: () => {
         // TODO: 实现图像反推功能
-        alert('图像反推功能即将推出');
+        toast.info('图像反推功能即将推出');
       }
     }
   ];

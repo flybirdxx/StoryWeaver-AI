@@ -37,10 +37,18 @@ export const ProjectsPage: React.FC = () => {
     navigate(`/project/${projectId}/dashboard`);
   };
 
-  const handleDeleteProject = (e: React.MouseEvent, projectId: string) => {
+  const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
     e.stopPropagation();
-    if (confirm('确定要删除这个项目吗？此操作无法撤销。')) {
-      deleteProject(projectId);
+    // 使用 Toast 确认对话框（通过 Promise 实现）
+    const confirmed = await new Promise<boolean>((resolve) => {
+      // 这里可以使用一个自定义的确认对话框组件，或者使用浏览器原生的 confirm
+      // 为了保持一致性，暂时使用 confirm，但可以后续替换为自定义组件
+      const result = window.confirm('确定要删除这个项目吗？此操作无法撤销。');
+      resolve(result);
+    });
+    
+    if (confirmed) {
+      await deleteProject(projectId);
     }
   };
 

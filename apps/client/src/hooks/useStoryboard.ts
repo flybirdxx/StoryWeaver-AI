@@ -8,6 +8,7 @@ interface UseStoryboardReturn {
   isLoading: boolean;
   isGenerating: boolean;
   generatingPanelId: string | number | null; // 正在生成的分镜 ID
+  generationProgress: { current: number; total: number } | null; // 批量生成进度
   loadPanels: () => void;
   selectPanel: (id: string | number) => void;
   updatePanelImage: (id: string | number, imageUrl: string, isUrl?: boolean) => void;
@@ -28,13 +29,14 @@ export function useStoryboard(): UseStoryboardReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingPanelId, setGeneratingPanelId] = useState<string | number | null>(null);
+  const [generationProgress, setGenerationProgress] = useState<{ current: number; total: number } | null>(null);
 
   // 只在组件挂载时加载一次，避免点击时重新加载覆盖已生成的图像
   const loadPanels = useCallback(() => {
     try {
-      const storyboardData = (window as any).storyboardData;
+    const storyboardData = (window as any).storyboardData;
       if (storyboardData && storyboardData.panels && Array.isArray(storyboardData.panels)) {
-        const loadedPanels = storyboardData.panels;
+      const loadedPanels = storyboardData.panels;
         
         // 智能合并：保留 store 中已有的图像数据
         const currentPanels = useProjectStore.getState().panels;
@@ -53,20 +55,20 @@ export function useStoryboard(): UseStoryboardReturn {
         });
         
         setPanels(mergedPanels);
-        // 如果当前没有选中分镜，自动选中第一个
+      // 如果当前没有选中分镜，自动选中第一个
         const currentSelectedId = useProjectStore.getState().selectedPanelId;
         if (mergedPanels.length > 0 && !currentSelectedId) {
           setSelectedPanelId(mergedPanels[0].id);
-        }
+      }
         console.log('已加载分镜数据:', mergedPanels.length, '个分镜');
-      } else {
-        console.log('未找到分镜数据，请先在剧本中心分析剧本');
+    } else {
+      console.log('未找到分镜数据，请先在剧本中心分析剧本');
         // 只有在确实没有数据时才清空，避免覆盖正在生成的数据
         const currentPanels = useProjectStore.getState().panels;
         if (currentPanels.length === 0) {
-          setPanels([]);
-          setSelectedPanelId(null);
-        }
+      setPanels([]);
+      setSelectedPanelId(null);
+    }
       }
     } catch (error) {
       console.error('[useStoryboard] 加载分镜数据失败:', error);
@@ -119,7 +121,7 @@ export function useStoryboard(): UseStoryboardReturn {
   const generateImages = useCallback(
     async (style: string, options: { aspectRatio?: string; imageSize?: string } = {}) => {
       if (panels.length === 0) {
-        alert('请先分析剧本生成分镜数据\n\n请前往"剧本中心"输入剧本并点击"AI 导演分析"');
+        toast.warning('请先分析剧本生成分镜数据', '请前往"剧本中心"输入剧本并点击"AI 导演分析"');
         return;
       }
 
@@ -197,6 +199,11 @@ export function useStoryboard(): UseStoryboardReturn {
                 switch (data.type) {
                   case 'generating':
                     console.log(`[流式] 正在生成分镜 ${data.panelId}...`);
+                    setGeneratingPanelId(data.panelId);
+                    break;
+
+                  case 'batch-start':
+                    setGenerationProgress({ current: 0, total: data.panelIds?.length || panels.length });
                     break;
 
                   case 'success':
@@ -209,26 +216,39 @@ export function useStoryboard(): UseStoryboardReturn {
                       );
                       successCount++;
                       console.log(`✓ 分镜 ${panelData.panelId} 图像已生成`);
+                      // 更新进度
+                      setGenerationProgress(prev => prev ? {
+                        current: prev.current + 1,
+                        total: prev.total
+                      } : null);
                     }
                     break;
 
                   case 'error':
                     failedCount++;
                     console.error(`✗ 分镜 ${data.data?.panelId || '未知'} 生成失败:`, data.data?.error || data.message);
+                    // 更新进度（即使失败也计入进度）
+                    setGenerationProgress(prev => prev ? {
+                      current: prev.current + 1,
+                      total: prev.total
+                    } : null);
                     break;
 
                   case 'complete':
                     console.log(`[流式] 全部完成！成功: ${data.success}，失败: ${data.failed}`);
+                    setGenerationProgress(null);
+                    setGeneratingPanelId(null);
                     const modeName = '电影模式';
                     if (data.failed > 0) {
                       const errorDetails = (data.errors || [])
                         .map((e: any) => `分镜 #${e.panelId}: ${e.error}`)
                         .join('\n');
-                      alert(
-                        `[${modeName}] 生成完成！成功: ${data.success} 张，失败: ${data.failed} 张\n\n失败详情:\n${errorDetails}`
+                      toast.warning(
+                        `[${modeName}] 生成完成！成功: ${data.success} 张，失败: ${data.failed} 张`,
+                        errorDetails
                       );
                     } else if (data.success > 0) {
-                      alert(`[${modeName}] 成功生成 ${data.success} 张图像！`);
+                      toast.success(`[${modeName}] 成功生成 ${data.success} 张图像！`);
                     }
                     break;
                 }
@@ -240,8 +260,11 @@ export function useStoryboard(): UseStoryboardReturn {
         }
       } catch (error: any) {
         console.error('图像生成错误:', error);
-        alert(
-          `生成失败: ${error.message || '未知错误'}\n\n请检查:\n1. API Key 是否正确配置且有图像生成权限\n2. 网络连接是否正常\n3. 提示词是否有效`
+        setGenerationProgress(null);
+        setGeneratingPanelId(null);
+        toast.error(
+          '生成失败',
+          `${error.message || '未知错误'}\n\n请检查:\n1. API Key 是否正确配置且有图像生成权限\n2. 网络连接是否正常\n3. 提示词是否有效`
         );
       } finally {
         setIsGenerating(false);
@@ -254,7 +277,7 @@ export function useStoryboard(): UseStoryboardReturn {
   const generateBatchImages = useCallback(
     async (selectedPanels: Panel[], style: string, options: { aspectRatio?: string; imageSize?: string } = {}) => {
       if (selectedPanels.length === 0) {
-        alert('请先选择要生成的分镜');
+        toast.warning('请先选择要生成的分镜');
         return;
       }
 
@@ -303,13 +326,13 @@ export function useStoryboard(): UseStoryboardReturn {
 
         const result = await response.json();
         if (result.success) {
-          alert(`已提交 ${result.data?.total || selectedPanels.length} 个任务到后台队列，可在 Dashboard 的任务中心查看进度。`);
+          toast.success(`已提交 ${result.data?.total || selectedPanels.length} 个任务到后台队列`, '可在 Dashboard 的任务中心查看进度');
         } else {
           throw new Error(result.error || '批量生成失败');
         }
       } catch (error: any) {
         console.error('批量生成错误:', error);
-        alert(`批量生成失败: ${error.message || '未知错误'}`);
+        toast.error('批量生成失败', error.message || '未知错误');
       } finally {
         setIsGenerating(false);
       }
@@ -322,12 +345,12 @@ export function useStoryboard(): UseStoryboardReturn {
     async (panelId: string | number, style: string, options: { aspectRatio?: string; imageSize?: string } = {}) => {
       const panel = panels.find(p => p.id === panelId);
       if (!panel) {
-        alert('找不到指定的分镜');
+        toast.warning('找不到指定的分镜');
         return;
       }
 
       if (!panel.prompt) {
-        alert('该分镜没有提示词，无法生成图像');
+        toast.warning('该分镜没有提示词，无法生成图像');
         return;
       }
 
@@ -393,7 +416,7 @@ export function useStoryboard(): UseStoryboardReturn {
         console.error(`分镜 ${panelId} 重新生成失败:`, error);
         // 更新状态为失败
         updatePanelStatus(panelId, 'failed');
-        alert(`重新生成失败: ${error.message || '未知错误'}\n\n请检查:\n1. API Key 是否正确配置\n2. 网络连接是否正常\n3. 提示词是否有效`);
+        toast.error('重新生成失败', `${error.message || '未知错误'}\n\n请检查:\n1. API Key 是否正确配置\n2. 网络连接是否正常\n3. 提示词是否有效`);
       } finally {
         setGeneratingPanelId(null);
         setIsGenerating(false);

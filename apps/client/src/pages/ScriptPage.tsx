@@ -4,6 +4,7 @@ import { useScriptStudio } from '../hooks/useScriptStudio';
 import { useCharacters } from '../hooks/useCharacters';
 import { useDashboard } from '../hooks/useDashboard';
 import { CharacterConfirmModal } from '../components/dashboard/CharacterConfirmModal';
+import { PanelEditor } from '../components/script/PanelEditor';
 import type { Character } from '@storyweaver/shared';
 
 export const ScriptPage: React.FC = () => {
@@ -24,7 +25,11 @@ export const ScriptPage: React.FC = () => {
     analysisStatus,
     analyzeScript,
     saveToShelf: saveToShelfOriginal,
-    formatAnalysisMarkdown
+    formatAnalysisMarkdown,
+    updatePanel,
+    deletePanel,
+    mergePanels,
+    splitPanel
   } = useScriptStudio();
 
   const [showCharacterModal, setShowCharacterModal] = useState(false);
@@ -189,52 +194,35 @@ export const ScriptPage: React.FC = () => {
           />
         </div>
 
-        {/* Analysis Output */}
+        {/* Analysis Output - 交互式分镜编辑器 */}
         <div className="bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 flex flex-col overflow-hidden transition-colors">
-          <div className="p-3 border-b border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 text-xs font-mono text-stone-500 dark:text-stone-400 flex justify-between">
-            <span>LLM ANALYSIS OUTPUT (JSON)</span>
+          <div className="p-3 border-b border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 text-xs font-mono text-stone-500 dark:text-stone-400 flex justify-between items-center">
+            <span>分镜编辑器</span>
             <span className={getStatusColor()}>{getStatusText()}</span>
           </div>
-          <div className="flex-1 p-6 overflow-y-auto text-stone-600 dark:text-green-400 leading-relaxed bg-white dark:bg-stone-900">
-            {isAnalyzing ? (
-              <div className="font-mono text-xs">
-                // 正在调用 Input Analysis Agent...<br />
-                // 正在解析场景与角色...
+          {isAnalyzing ? (
+            <div className="flex-1 p-6 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p className="text-sm text-stone-500 dark:text-stone-400">正在分析剧本...</p>
               </div>
-            ) : analysisResult ? (
-              <div
-                className="text-stone-100 leading-relaxed tracking-wide prose prose-invert max-w-none"
-                dangerouslySetInnerHTML={{
-                  __html: formatAnalysisMarkdown(analysisResult)
-                    .split('\n')
-                    .map((line) => {
-                      // 简单的 Markdown 渲染（可以后续集成 marked 库）
-                      if (line.startsWith('# ')) {
-                        return `<h1 class="text-2xl font-bold mb-2">${line.slice(2)}</h1>`;
-                      }
-                      if (line.startsWith('## ')) {
-                        return `<h2 class="text-xl font-bold mt-4 mb-2">${line.slice(3)}</h2>`;
-                      }
-                      if (line.startsWith('- **')) {
-                        return `<li class="mb-1">${line.slice(2)}</li>`;
-                      }
-                      if (line.startsWith('```')) {
-                        return '';
-                      }
-                      if (line.trim() === '') {
-                        return '<br />';
-                      }
-                      return `<p>${line}</p>`;
-                    })
-                    .join('')
-                }}
-              />
-            ) : (
-              <div className="font-mono text-xs text-stone-500 dark:text-stone-400">
-                // 点击"AI 导演分析"生成结构化分镜数据...
+            </div>
+          ) : analysisResult && analysisResult.panels && analysisResult.panels.length > 0 ? (
+            <PanelEditor
+              panels={analysisResult.panels as any}
+              onUpdatePanel={updatePanel}
+              onDeletePanel={deletePanel}
+              onMergePanels={mergePanels}
+              onSplitPanel={splitPanel}
+            />
+          ) : (
+            <div className="flex-1 p-6 flex items-center justify-center">
+              <div className="text-center text-stone-400 dark:text-stone-500">
+                <p className="text-sm mb-1">点击"AI 导演分析"生成结构化分镜数据</p>
+                <p className="text-xs">分析完成后，您可以在此编辑、合并或拆分分镜</p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 

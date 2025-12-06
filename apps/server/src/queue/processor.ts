@@ -83,10 +83,17 @@ export async function processImageGenerationJob(
             service = new ServiceClass(finalApiKey);
           }
 
+    // 从 options 中提取 panelContext（如果存在）
+    const panelContext = options?.panelContext || {};
+    const finalOptions = {
+      ...(options || {}),
+      panelContext
+    };
+    
     // 生成图像（带重试）
     const result = await generateWithRetry(
       () =>
-        service.generateImage(prompt, style || 'cel-shading', characterRefs || {}, options || {}),
+        service.generateImage(prompt, style || 'cel-shading', characterRefs || {}, finalOptions),
       job.maxRetries
     ) as { imageUrl: string; isUrl?: boolean };
 

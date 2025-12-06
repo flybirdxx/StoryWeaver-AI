@@ -76,10 +76,14 @@ router.post('/generate', async (req: Request, res: Response) => {
             service = new ServiceClass(apiKey);
           }
 
+    // 如果请求体中包含 panelContext，使用它
+    const panelContext = req.body?.panelContext || {};
+    
     const result = await generateWithRetry(() =>
       service.generateImage(prompt, style || 'cel-shading', characterRefs || {}, {
         aspectRatio: aspectRatio || '16:9',
-        imageSize: imageSize || '4K'
+        imageSize: imageSize || '4K',
+        panelContext
       })
     );
 
@@ -171,9 +175,19 @@ router.post('/generate-batch-stream', async (req: Request, res: Response) => {
           }`
         );
 
+        // 提取 panel 信息作为 panelContext
+        const panelContext = {
+          type: panel.type,
+          dialogue: panel.dialogue,
+          sfx: panel.sfx
+        };
+
         const result = await generateWithRetry(
           () =>
-            service.generateImage(prompt, style || 'cel-shading', characterRefs || {}, options || {}),
+            service.generateImage(prompt, style || 'cel-shading', characterRefs || {}, {
+              ...(options || {}),
+              panelContext
+            }),
           retryLimit
         ) as { imageUrl: string; isUrl?: boolean };
 

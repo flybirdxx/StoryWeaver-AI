@@ -183,7 +183,7 @@ export function useCharacters(): UseCharactersReturn {
       },
       onError: (err) => {
         setLocalError(err.message || '删除角色失败');
-        alert(`删除角色失败: ${err.message}`);
+        toast.error('删除角色失败', err.message);
       },
     }
   );
@@ -219,7 +219,7 @@ export function useCharacters(): UseCharactersReturn {
     ].filter(Boolean);
 
     if (promptParts.length === 0) {
-      alert('该角色缺少基础提示信息，无法生成参考图像。请先补充描述或标签。');
+      toast.warning('该角色缺少基础提示信息', '无法生成参考图像。请先补充描述或标签。');
       return;
     }
 
@@ -251,7 +251,7 @@ export function useCharacters(): UseCharactersReturn {
       });
 
       if (!response.success || !response.data || !response.data.imageUrl) {
-        alert('生成角色参考图失败，请稍后重试。');
+        toast.error('生成角色参考图失败', '请稍后重试');
         return;
       }
 
@@ -266,7 +266,7 @@ export function useCharacters(): UseCharactersReturn {
 
       if (!imageUrl) {
         console.error('[角色图像生成] 响应中没有 imageUrl');
-        alert('生成角色参考图失败：服务器未返回图像数据');
+        toast.error('生成角色参考图失败', '服务器未返回图像数据');
         return;
       }
 
@@ -307,7 +307,7 @@ export function useCharacters(): UseCharactersReturn {
       console.log('[角色图像生成] 角色数据已更新');
     } catch (err: any) {
       console.error('生成角色图像失败:', err);
-      alert(`生成角色参考图失败: ${err.message}`);
+      toast.error('生成角色参考图失败', err.message);
     }
   }, [characters, updateCharacter]);
 

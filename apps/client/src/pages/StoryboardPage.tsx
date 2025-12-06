@@ -19,7 +19,44 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useStoryboard } from '../hooks/useStoryboard';
 import { useProjectStore } from '../stores/useProjectStore';
+import { ProgressBar } from '../components/ui/ProgressBar';
+import { toast } from '../lib/toast';
 import type { Panel, PanelStatus } from '@storyweaver/shared';
+
+// 镜头类型中英文映射
+const getPanelTypeLabel = (type: string | undefined): string => {
+  if (!type) return '全景';
+  
+  const typeMap: Record<string, string> = {
+    'Close-up': '特写',
+    'Mid Shot': '中景',
+    'Wide Shot': '全景',
+    'Action': '动作',
+    'Action / Mid Shot': '动作 / 中景',
+    'Action / Close-up': '动作 / 特写',
+    'Action / Wide Shot': '动作 / 全景',
+  };
+  
+  // 如果类型已经是中文，直接返回
+  if (/[\u4e00-\u9fa5]/.test(type)) {
+    return type;
+  }
+  
+  // 如果是已知的英文类型，转换为中文
+  if (typeMap[type]) {
+    return typeMap[type];
+  }
+  
+  // 如果包含英文但不在映射表中，检查是否包含中文
+  // 如果完全是英文，尝试转换常见词汇
+  const normalizedType = type.trim();
+  if (typeMap[normalizedType]) {
+    return typeMap[normalizedType];
+  }
+  
+  // 如果无法映射，返回原值（可能是自定义类型或包含英文的混合类型）
+  return type;
+};
 
 export const StoryboardPage: React.FC = () => {
   const {
@@ -27,12 +64,14 @@ export const StoryboardPage: React.FC = () => {
     selectedPanelId,
     isGenerating,
     generatingPanelId,
+    generationProgress,
     selectPanel,
     generateImages,
     generateBatchImages,
     regenerateSinglePanel
   } = useStoryboard();
   const reorderPanels = useProjectStore((state) => state.reorderPanels);
+  const restorePanelVersion = useProjectStore((state) => state.restorePanelVersion);
 
   const [artStyle, setArtStyle] = useState('realism');
   const [selectedPanelIds, setSelectedPanelIds] = useState<Set<string | number>>(new Set());
@@ -115,7 +154,7 @@ export const StoryboardPage: React.FC = () => {
   // 批量生成选中的分镜
   const handleBatchGenerate = async () => {
     if (selectedPanelIds.size === 0) {
-      alert('请先选择要生成的分镜（Shift+点击或 Ctrl+点击）');
+      toast.warning('请先选择要生成的分镜', 'Shift+点击或 Ctrl+点击进行多选');
       return;
     }
     const selectedPanels = safePanels.filter(p => selectedPanelIds.has(p.id));
@@ -172,6 +211,18 @@ export const StoryboardPage: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* 生成进度条 */}
+      {generationProgress && (
+        <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+          <ProgressBar
+            current={generationProgress.current}
+            total={generationProgress.total}
+            label="批量生成进度"
+            showPercentage={true}
+          />
+        </div>
+      )}
 
       {/* Tool Bar */}
       <div className="bg-white dark:bg-stone-900 p-3 rounded-lg border border-stone-200 dark:border-stone-800 flex flex-wrap gap-4 items-center shadow-sm dark:shadow-black/30 transition-colors">
@@ -263,10 +314,10 @@ export const StoryboardPage: React.FC = () => {
         ) : (
           // =================== List View (列表视图) ===================
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
-            {/* Left: Shot list */}
+            {/* Left: 分镜列表 */}
             <div className="lg:col-span-5 bg-white dark:bg-stone-900 rounded-xl shadow-sm dark:shadow-black/30 border border-stone-200 dark:border-stone-800 flex flex-col overflow-hidden transition-colors">
               <div className="px-4 py-3 border-b border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/60 text-xs text-stone-500 dark:text-stone-400 flex justify-between items-center">
-                <span className="font-mono">SHOT LIST</span>
+                <span className="font-mono">分镜列表</span>
                 <span className="text-[11px] text-stone-400 dark:text-stone-500">{safePanels.length} 分镜</span>
               </div>
               <DndContext
@@ -315,6 +366,7 @@ export const StoryboardPage: React.FC = () => {
                     })}
                     artStyle={artStyle}
                     isGenerating={generatingPanelId === selectedPanel.id}
+                    onRestoreVersion={restorePanelVersion}
                   />
                 )}
               </div>
@@ -496,7 +548,7 @@ const PanelCard: React.FC<PanelCardProps & { dragHandleProps?: any }> = ({
               <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <>
-                <span className="text-xs opacity-60">{panel.type || 'Wide Shot'}</span>
+                <span className="text-xs opacity-60">{getPanelTypeLabel(panel.type)}</span>
                 <span className="text-[8px] opacity-40">等待生成</span>
               </>
             )}
@@ -510,7 +562,7 @@ const PanelCard: React.FC<PanelCardProps & { dragHandleProps?: any }> = ({
             {statusLabels[status]}
           </span>
           <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded">
-            {panel.type || 'Mid Shot'}
+            {getPanelTypeLabel(panel.type)}
           </span>
           <span className="text-[10px] text-stone-400 dark:text-stone-500">{duration}s</span>
           {status === 'failed' && onRegenerate && (
@@ -572,7 +624,7 @@ const PanelGridCard: React.FC<PanelCardProps & { dragHandleProps?: any }> = ({
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs font-bold text-stone-500 dark:text-stone-400">{label}</span>
           <span className="text-[10px] px-1.5 rounded-full bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300">
-            {panel.type || 'Mid Shot'}
+            {getPanelTypeLabel(panel.type)}
           </span>
         </div>
         {dragHandleProps && (
@@ -601,7 +653,7 @@ const PanelGridCard: React.FC<PanelCardProps & { dragHandleProps?: any }> = ({
             ) : (
               <>
                 <span className="text-2xl opacity-20">🎬</span>
-                <span className="text-xs opacity-60 font-mono">{panel.type || 'Wide Shot'}</span>
+                <span className="text-xs opacity-60 font-mono">{getPanelTypeLabel(panel.type)}</span>
                 <span className="text-[10px] opacity-40">等待生成</span>
               </>
             )}
@@ -640,9 +692,18 @@ interface PanelDetailProps {
   onRegenerate?: (panelId: string | number) => void;
   artStyle?: string;
   isGenerating?: boolean;
+  onRestoreVersion?: (panelId: string | number, versionId: string) => void;
 }
 
-const PanelDetail: React.FC<PanelDetailProps> = ({ panel, onRegenerate, artStyle = 'cel-shading', isGenerating = false }) => {
+const PanelDetail: React.FC<PanelDetailProps> = ({ 
+  panel, 
+  onRegenerate, 
+  artStyle = 'cel-shading', 
+  isGenerating = false,
+  onRestoreVersion 
+}) => {
+  const getPanelVersions = useProjectStore((state) => state.getPanelVersions);
+  const versions = getPanelVersions(panel.id);
   const label = `#${String(panel.id).padStart(2, '0')}`;
   const duration = panel.duration || 3.0;
   
@@ -660,10 +721,10 @@ const PanelDetail: React.FC<PanelDetailProps> = ({ panel, onRegenerate, artStyle
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 py-2 bg-stone-950 dark:bg-stone-800 text-xs text-stone-400 dark:text-stone-500 font-mono flex items-center justify-between">
-        <span>Shot {label}</span>
+        <span>分镜 {label}</span>
         <div className="flex items-center gap-2">
           <span>
-            {panel.type || 'Mid Shot'} · {duration}s
+            {getPanelTypeLabel(panel.type)} · {duration}s
           </span>
           {status === 'failed' && onRegenerate && (
             <button
@@ -710,6 +771,39 @@ const PanelDetail: React.FC<PanelDetailProps> = ({ panel, onRegenerate, artStyle
           <div>
             <div className="text-xs font-semibold text-stone-500 dark:text-stone-300 mb-1">音效 / SFX</div>
             <p className="text-xs font-mono text-orange-600 dark:text-orange-400">{panel.sfx}</p>
+          </div>
+        )}
+        
+        {/* 版本历史 */}
+        {versions.length > 0 && (
+          <div className="pt-3 border-t border-stone-200 dark:border-stone-800">
+            <div className="text-xs font-semibold text-stone-500 dark:text-stone-300 mb-2">
+              历史版本 ({versions.length})
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {versions.map((version) => (
+                <button
+                  key={version.id}
+                  onClick={() => onRestoreVersion?.(panel.id, version.id)}
+                  className={`flex-shrink-0 w-16 h-16 rounded border-2 overflow-hidden transition-all ${
+                    version.isCurrent
+                      ? 'border-orange-500 ring-2 ring-orange-200 dark:ring-orange-800'
+                      : 'border-stone-300 dark:border-stone-700 hover:border-orange-400 dark:hover:border-orange-600'
+                  }`}
+                  title={`版本 ${version.id} - ${new Date(version.timestamp).toLocaleString()}`}
+                >
+                  <img
+                    src={version.imageUrl}
+                    alt={`Version ${version.id}`}
+                    className="w-full h-full object-cover"
+                    crossOrigin={version.imageIsUrl ? 'anonymous' : undefined}
+                  />
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-stone-400 dark:text-stone-500 mt-1">
+              点击历史版本可恢复该版本
+            </p>
           </div>
         )}
       </div>

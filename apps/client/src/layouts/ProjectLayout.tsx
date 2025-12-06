@@ -3,6 +3,7 @@ import { NavLink, Outlet, useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, LayoutDashboard, FileText, Users, Film, Activity } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
+import { toast } from '../lib/toast';
 
 /**
  * ProjectLayout - 项目工作台布局
@@ -40,7 +41,7 @@ export const ProjectLayout: React.FC = () => {
   const handleNavClick = (e: React.MouseEvent, item: typeof navItems[0]) => {
     if (item.locked) {
       e.preventDefault();
-      alert('🔒 请先在「剧本中心」完成 AI 导演分析，才能解锁角色库和故事板。');
+      toast.warning('功能已锁定', '请先在「剧本中心」完成 AI 导演分析，才能解锁角色库和故事板');
     }
   };
 

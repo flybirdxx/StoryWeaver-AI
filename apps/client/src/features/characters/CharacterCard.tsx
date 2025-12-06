@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { GenerationProgress } from '../../components/ui/ProgressBar';
 import type { Character } from '@storyweaver/shared';
 
 interface CharacterCardProps {
@@ -85,8 +86,19 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           {/* 生成中遮罩 */}
           {isGeneratingImage && (
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center text-white z-10 p-4 text-center">
-              <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-              <p className="text-xs font-medium animate-pulse">{getProgressMessage()}</p>
+              {generationProgress ? (
+                <div className="w-full max-w-xs">
+                  <GenerationProgress
+                    stage={generationProgress.stage}
+                    message={generationProgress.message}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                  <p className="text-xs font-medium animate-pulse">{getProgressMessage()}</p>
+                </>
+              )}
             </div>
           )}
 

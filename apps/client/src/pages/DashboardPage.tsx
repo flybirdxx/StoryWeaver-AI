@@ -39,7 +39,7 @@ export const DashboardPage: React.FC = () => {
 
   const openRename = () => {
     if (!currentProject) return;
-    setRenameForm({ 
+    setRenameForm({
       name: currentProject.name || '', 
       tags: (currentProject.tags || []).join(', ') 
     });
@@ -104,20 +104,20 @@ export const DashboardPage: React.FC = () => {
           <div className="flex items-center gap-2 text-xs text-stone-500 mb-1">
             <Film className="w-4 h-4" />
             当前项目
-          </div>
+            </div>
           <div className="text-lg font-bold truncate" title={currentProject.name}>
             {currentProject.name}
-          </div>
+              </div>
           <div className="flex gap-1 mt-2">
             {(currentProject.tags || []).slice(0, 2).map(tag => (
-              <span 
+                        <span
                 key={tag} 
                 className="text-[10px] bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded text-stone-500"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
         </motion.div>
 
         <motion.div
@@ -129,7 +129,7 @@ export const DashboardPage: React.FC = () => {
           <div className="flex items-center gap-2 text-xs text-stone-500 mb-1">
             <TrendingUp className="w-4 h-4" />
             生成进度
-          </div>
+            </div>
           <div className="text-2xl font-black text-orange-500">{generatedPanels}/{totalPanels}</div>
           <div className="w-full bg-stone-100 dark:bg-stone-800 h-1.5 rounded-full mt-2 overflow-hidden">
             <motion.div 
@@ -150,11 +150,11 @@ export const DashboardPage: React.FC = () => {
           <div className="flex items-center gap-2 text-xs text-stone-500 mb-1">
             <Film className="w-4 h-4" />
             分镜总数
-          </div>
+              </div>
           <div className="text-2xl font-black text-stone-800 dark:text-stone-100">{projectPanels.length}</div>
           <div className="text-xs text-stone-400 mt-1">
             Stage: {currentProject.stats?.stage || 'Scripting'}
-          </div>
+              </div>
         </motion.div>
 
         <motion.div
@@ -166,16 +166,16 @@ export const DashboardPage: React.FC = () => {
           <div className="flex items-center gap-2 text-xs text-stone-500 mb-1">
             <Users className="w-4 h-4" />
             主要角色
-          </div>
+                </div>
           <ProjectCharacters project={currentProject} maxVisible={3} />
         </motion.div>
-      </div>
+            </div>
 
       {/* Middle Section: Pipeline & Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <PipelineMonitor project={currentProject} />
-        </div>
+              </div>
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -221,21 +221,21 @@ export const DashboardPage: React.FC = () => {
                   <div className="text-center">
                     <div className="text-2xl font-bold text-stone-800 dark:text-stone-100">{totalValue}</div>
                     <div className="text-xs text-stone-500 dark:text-stone-400">个分镜</div>
-                  </div>
-                </div>
-              )}
             </div>
+          </div>
+              )}
+              </div>
           ) : (
             <div className="h-[200px] flex items-center justify-center text-stone-400 text-sm">
               暂无数据
             </div>
           )}
         </motion.div>
-      </div>
+          </div>
 
       {/* Bottom Section: Tasks */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <QuickActions />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <QuickActions />
         <TaskCenter />
       </div>
 
@@ -245,27 +245,27 @@ export const DashboardPage: React.FC = () => {
           <div className="bg-white dark:bg-stone-900 rounded-xl p-6 max-w-md w-full border border-stone-200 dark:border-stone-700">
             <h3 className="text-xl font-bold mb-4">修改项目信息</h3>
             <div className="space-y-4">
-              <input 
+                <input
                 className="w-full p-2 border rounded bg-transparent"
-                value={renameForm.name}
+                  value={renameForm.name}
                 onChange={e => setRenameForm({...renameForm, name: e.target.value})}
                 placeholder="项目名称"
-              />
-              <input 
+                />
+                <input
                 className="w-full p-2 border rounded bg-transparent"
-                value={renameForm.tags}
+                  value={renameForm.tags}
                 onChange={e => setRenameForm({...renameForm, tags: e.target.value})}
                 placeholder="标签 (逗号分隔)"
-              />
+                />
               <div className="flex justify-end gap-2">
-                <button 
+                <button
                   onClick={() => setShowRenameModal(false)} 
                   className="px-4 py-2 text-stone-500"
                 >
                   取消
                 </button>
-                <button 
-                  onClick={handleRenameSubmit} 
+                <button
+                  onClick={handleRenameSubmit}
                   className="px-4 py-2 bg-orange-600 text-white rounded"
                 >
                   保存

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Key, Save, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Key, Save, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
+import { maskApiKey } from '../lib/apiKeyMask';
 
 /**
  * SettingsPage - 全局设置页面
@@ -21,6 +22,29 @@ export const SettingsPage: React.FC = () => {
     saveApiKey,
     saveDeepseekKey
   } = useSettings();
+
+  // 显示/隐藏 API Key 的状态
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [showDeepseekKey, setShowDeepseekKey] = useState(false);
+  
+  // 本地编辑状态（用于区分是编辑中还是显示已保存的 Key）
+  const [geminiKeyInput, setGeminiKeyInput] = useState('');
+  const [deepseekKeyInput, setDeepseekKeyInput] = useState('');
+  const [isGeminiEditing, setIsGeminiEditing] = useState(false);
+  const [isDeepseekEditing, setIsDeepseekEditing] = useState(false);
+
+  // 当从 Store 加载 Key 时，初始化输入框
+  React.useEffect(() => {
+    if (geminiApiKey && !isGeminiEditing) {
+      setGeminiKeyInput(maskApiKey(geminiApiKey));
+    }
+  }, [geminiApiKey, isGeminiEditing]);
+
+  React.useEffect(() => {
+    if (deepseekApiKey && !isDeepseekEditing) {
+      setDeepseekKeyInput(maskApiKey(deepseekApiKey));
+    }
+  }, [deepseekApiKey, isDeepseekEditing]);
 
   return (
     <div className="min-h-screen bg-stone-100 dark:bg-stone-950 p-8">
@@ -50,13 +74,41 @@ export const SettingsPage: React.FC = () => {
               Gemini API Key
             </label>
             <div className="flex gap-2">
-              <input
-                type="password"
-                value={geminiApiKey}
-                onChange={(e) => setGeminiApiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                className="flex-1 p-2 border border-stone-300 dark:border-stone-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100"
-              />
+              <div className="flex-1 relative">
+                <input
+                  type={showGeminiKey || isGeminiEditing ? 'text' : 'password'}
+                  value={isGeminiEditing ? geminiKeyInput : (showGeminiKey ? geminiApiKey : maskApiKey(geminiApiKey))}
+                  onChange={(e) => {
+                    setGeminiKeyInput(e.target.value);
+                    setGeminiApiKey(e.target.value);
+                    setIsGeminiEditing(true);
+                  }}
+                  onFocus={() => {
+                    if (!isGeminiEditing) {
+                      setGeminiKeyInput(geminiApiKey);
+                      setIsGeminiEditing(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (geminiKeyInput === geminiApiKey) {
+                      setIsGeminiEditing(false);
+                      setGeminiKeyInput(maskApiKey(geminiApiKey));
+                    }
+                  }}
+                  placeholder="AIzaSy..."
+                  className="w-full p-2 pr-10 border border-stone-300 dark:border-stone-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100"
+                />
+                {geminiApiKey && (
+                  <button
+                    type="button"
+                    onClick={() => setShowGeminiKey(!showGeminiKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+                    title={showGeminiKey ? '隐藏' : '显示'}
+                  >
+                    {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                )}
+              </div>
               <button
                 onClick={testApiKey}
                 disabled={isTestingKey}
@@ -96,13 +148,41 @@ export const SettingsPage: React.FC = () => {
           </div>
           <div className="pt-4 border-t border-stone-100 dark:border-stone-800">
             <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1">DeepSeek API Key</label>
-            <input
-              type="password"
-              value={deepseekApiKey}
-              onChange={(e) => setDeepseekApiKey(e.target.value)}
-              placeholder="sk-xxxx"
-              className="w-full p-2 border border-stone-300 dark:border-stone-700 rounded-lg focus:ring-2 focus:ring-stone-500 focus:outline-none bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100"
-            />
+            <div className="relative">
+              <input
+                type={showDeepseekKey || isDeepseekEditing ? 'text' : 'password'}
+                value={isDeepseekEditing ? deepseekKeyInput : (showDeepseekKey ? deepseekApiKey : maskApiKey(deepseekApiKey))}
+                onChange={(e) => {
+                  setDeepseekKeyInput(e.target.value);
+                  setDeepseekApiKey(e.target.value);
+                  setIsDeepseekEditing(true);
+                }}
+                onFocus={() => {
+                  if (!isDeepseekEditing) {
+                    setDeepseekKeyInput(deepseekApiKey);
+                    setIsDeepseekEditing(true);
+                  }
+                }}
+                onBlur={() => {
+                  if (deepseekKeyInput === deepseekApiKey) {
+                    setIsDeepseekEditing(false);
+                    setDeepseekKeyInput(maskApiKey(deepseekApiKey));
+                  }
+                }}
+                placeholder="sk-xxxx"
+                className="w-full p-2 pr-10 border border-stone-300 dark:border-stone-700 rounded-lg focus:ring-2 focus:ring-stone-500 focus:outline-none bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100"
+              />
+              {deepseekApiKey && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeepseekKey(!showDeepseekKey)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+                  title={showDeepseekKey ? '隐藏' : '显示'}
+                >
+                  {showDeepseekKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              )}
+            </div>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">用于脚本推理（DeepSeek V3.2），不会与图像生成 Key 混用。</p>
             <div className="flex gap-2 mt-2">
               <button
